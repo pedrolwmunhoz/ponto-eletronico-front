@@ -1,14 +1,25 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { tokenStorage } from "@/lib/token-storage";
 
 const Index = () => {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
-    </div>
-  );
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (tokenStorage.isAuthenticated()) {
+      const tipo = tokenStorage.getUserType();
+      switch (tipo) {
+        case "EMPRESA": navigate("/empresa", { replace: true }); break;
+        case "FUNCIONARIO": navigate("/funcionario", { replace: true }); break;
+        case "ADMIN": navigate("/admin", { replace: true }); break;
+        default: navigate("/login", { replace: true });
+      }
+    } else {
+      navigate("/login", { replace: true });
+    }
+  }, [navigate]);
+
+  return null;
 };
 
 export default Index;
