@@ -1,73 +1,86 @@
-# Welcome to your Lovable project
+# PontoSeg — Frontend
 
-## Project info
+Interface web do sistema de ponto eletrônico SaaS. Área **Empresa** (gestão de funcionários, espelho de ponto, banco de horas, solicitações, férias/afastamentos, relatórios, auditoria) e área **Funcionário** (bater ponto, calendário, banco de horas, férias, perfil).
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Stack
 
-## How can I edit this code?
+- **Vite** — build e dev server
+- **React 18** + **TypeScript**
+- **React Router** — rotas públicas e protegidas por tipo de usuário (EMPRESA / FUNCIONARIO)
+- **TanStack Query** — cache e requisições à API
+- **Axios** — cliente HTTP (base URL configurável em `src/lib/api.ts`)
+- **Tailwind CSS** + **shadcn/ui** (Radix) — UI
+- **Recharts** — gráficos no Dashboard (métricas do mês)
+- **date-fns** — datas
+- **Lucide React** — ícones
+- **Zod** + **React Hook Form** — validação e formulários
 
-There are several ways of editing your application.
+## Pré-requisitos
 
-**Use Lovable**
+- Node.js 18+ e npm (ou bun)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Desenvolvimento
 
-Changes made via Lovable will be committed automatically to this repo.
+```bash
+# Instalar dependências
+npm install
 
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Subir o servidor de desenvolvimento (hot reload)
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+A aplicação abre em `http://localhost:5173` (ou outra porta indicada no terminal). O front chama a API em `http://localhost:8081` por padrão; altere `API_BASE_URL` em `src/lib/api.ts` se o backend estiver em outra URL.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Scripts
 
-**Use GitHub Codespaces**
+| Comando        | Descrição                    |
+|----------------|------------------------------|
+| `npm run dev`  | Servidor de desenvolvimento   |
+| `npm run build`| Build de produção            |
+| `npm run build:dev` | Build em modo development |
+| `npm run preview`   | Preview do build de produção |
+| `npm run lint` | ESLint                       |
+| `npm run test` | Vitest (testes unitários)    |
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Estrutura principal
 
-## What technologies are used for this project?
+```
+src/
+├── App.tsx                 # Rotas (públicas, /empresa/*, /funcionario/*)
+├── main.tsx
+├── components/
+│   ├── layouts/            # EmpresaLayout, FuncionarioLayout (sidebar + outlet)
+│   ├── ui/                 # shadcn (Button, Card, Table, etc.)
+│   └── landing/            # Seções da landing (Index)
+├── contexts/
+│   └── AuthContext.tsx     # Login, logout, tipo de usuário, token
+├── lib/
+│   ├── api.ts              # Axios instance, interceptors (JWT, refresh)
+│   ├── api-empresa.ts      # Chamadas /api/empresa/*
+│   ├── api-funcionario.ts  # Chamadas /api/funcionario/* e registro de ponto
+│   ├── duration.ts         # Helpers para Duration (métricas)
+│   └── token-storage.ts    # Armazenamento do token
+├── pages/
+│   ├── auth/               # Login, recuperar senha, cadastro empresa
+│   ├── empresa/            # Dashboard, funcionários, espelho ponto, banco horas, etc.
+│   └── funcionario/        # Bater ponto, calendário, banco horas, férias, perfil
+└── types/
+    ├── auth.ts
+    └── empresa.ts          # DTOs alinhados ao backend (doc.html)
+```
 
-This project is built with:
+## Rotas
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- **Públicas:** `/`, `/login`, `/recuperar-senha`, `/cadastro`
+- **Empresa** (após login com tipo EMPRESA): `/empresa` (Dashboard), `/empresa/funcionarios`, `/empresa/espelho-ponto`, `/empresa/banco-horas`, `/empresa/solicitacoes`, `/empresa/ferias`, `/empresa/geofences`, `/empresa/relatorios`, `/empresa/auditoria`, `/empresa/configuracoes`, `/empresa/perfil`, `/empresa/config-inicial`
+- **Funcionário** (após login com tipo FUNCIONARIO): `/funcionario` (bater ponto), `/funcionario/calendario`, `/funcionario/banco-horas`, `/funcionario/ferias`, `/funcionario/perfil`
 
-## How can I deploy this project?
+O Dashboard exibe cards de métricas (funcionários, solicitações pendentes, total do dia, registros hoje) e gráficos do mês (horas acumuladas, horas por dia, total registro de pontos acumulado e por dia, total de funcionários).
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## Build para produção
 
-## Can I connect a custom domain to my Lovable project?
+```bash
+npm run build
+```
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Saída em `dist/`. Para servir: `npm run preview` ou use o output em qualquer servidor estático (Nginx, etc.), garantindo que rotas client-side (ex.: `/empresa/perfil`) sejam redirecionadas para `index.html` se o projeto usar roteamento apenas no cliente.
