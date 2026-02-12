@@ -7,7 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 // Layouts
-import { EmpresaLayout } from "@/components/layouts/EmpresaLayout";
+import EmpresaLayout from "@/components/layouts/EmpresaLayout";
 import { FuncionarioLayout } from "@/components/layouts/FuncionarioLayout";
 
 // Public pages
@@ -19,10 +19,24 @@ import CadastroEmpresaPage from "./pages/auth/CadastroEmpresaPage";
 
 // Empresa pages
 import DashboardPage from "./pages/empresa/DashboardPage";
+import FuncionariosPage from "./pages/empresa/FuncionariosPage";
+import SolicitacoesPage from "./pages/empresa/SolicitacoesPage";
+import FeriasPage from "./pages/empresa/FeriasPage";
+import GeofencesPage from "./pages/empresa/GeofencesPage";
+import RelatoriosPage from "./pages/empresa/RelatoriosPage";
+import AuditoriaPage from "./pages/empresa/AuditoriaPage";
+import PerfilEmpresaPage from "./pages/empresa/PerfilEmpresaPage";
+import PontoFuncionarioPage from "./pages/empresa/PontoFuncionarioPage";
+import BancoHorasPage from "./pages/empresa/BancoHorasPage";
 import PlaceholderPage from "./pages/empresa/PlaceholderPage";
+import ConfigInicialPage from "./pages/empresa/ConfigInicialPage";
+import BancoHorasFuncionarioPage from "./pages/funcionario/BancoHorasPage";
 
 // Funcionario pages
 import BaterPontoPage from "./pages/funcionario/BaterPontoPage";
+import CalendarioPontoPage from "./pages/funcionario/CalendarioPontoPage";
+import FeriasFuncionarioPage from "./pages/funcionario/FeriasPage";
+import PerfilFuncionarioPage from "./pages/funcionario/PerfilPage";
 
 const queryClient = new QueryClient();
 
@@ -50,14 +64,17 @@ const App = () => (
               }
             >
               <Route index element={<DashboardPage />} />
-              <Route path="funcionarios" element={<PlaceholderPage />} />
-              <Route path="solicitacoes" element={<PlaceholderPage />} />
-              <Route path="ferias" element={<PlaceholderPage />} />
-              <Route path="geofences" element={<PlaceholderPage />} />
-              <Route path="relatorios" element={<PlaceholderPage />} />
-              <Route path="auditoria" element={<PlaceholderPage />} />
+              <Route path="config-inicial" element={<ConfigInicialPage />} />
+              <Route path="funcionarios" element={<FuncionariosPage />} />
+              <Route path="espelho-ponto" element={<PontoFuncionarioPage />} />
+              <Route path="banco-horas" element={<BancoHorasPage />} />
+              <Route path="solicitacoes" element={<SolicitacoesPage />} />
+              <Route path="ferias" element={<FeriasPage />} />
+              <Route path="geofences" element={<GeofencesPage />} />
+              <Route path="relatorios" element={<RelatoriosPage />} />
+              <Route path="auditoria" element={<AuditoriaPage />} />
               <Route path="configuracoes" element={<PlaceholderPage />} />
-              <Route path="perfil" element={<PlaceholderPage />} />
+              <Route path="perfil" element={<PerfilEmpresaPage />} />
             </Route>
 
             {/* Funcionário */}
@@ -70,10 +87,10 @@ const App = () => (
               }
             >
               <Route index element={<BaterPontoPage />} />
-              <Route path="calendario" element={<PlaceholderPage />} />
-              <Route path="banco-horas" element={<PlaceholderPage />} />
-              <Route path="ferias" element={<PlaceholderPage />} />
-              <Route path="perfil" element={<PlaceholderPage />} />
+              <Route path="calendario" element={<CalendarioPontoPage />} />
+              <Route path="banco-horas" element={<BancoHorasFuncionarioPage />} />
+              <Route path="ferias" element={<FeriasFuncionarioPage />} />
+              <Route path="perfil" element={<PerfilFuncionarioPage />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

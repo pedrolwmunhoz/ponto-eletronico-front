@@ -17,8 +17,10 @@ export const tokenStorage = {
   setTokens(tokens: AuthTokens) {
     localStorage.setItem(TOKENS_KEY, JSON.stringify(tokens));
     const payload = parseJwt(tokens.jwt);
-    if (payload?.tipo) {
-      localStorage.setItem(USER_TYPE_KEY, payload.tipo as string);
+    const raw = (payload?.scope ?? payload?.tipo) as string | undefined;
+    const tipo = raw?.replace(/^SCOPE_/, "") ?? null;
+    if (tipo) {
+      localStorage.setItem(USER_TYPE_KEY, tipo);
     }
   },
 
@@ -39,5 +41,14 @@ export const tokenStorage = {
   isAuthenticated(): boolean {
     const tokens = this.getTokens();
     return !!tokens?.jwt;
+  },
+
+  /** ID do usuário logado (subject do JWT). */
+  getUserId(): string | null {
+    const tokens = this.getTokens();
+    if (!tokens?.jwt) return null;
+    const payload = parseJwt(tokens.jwt);
+    const sub = payload?.sub as string | undefined;
+    return sub ?? null;
   },
 };

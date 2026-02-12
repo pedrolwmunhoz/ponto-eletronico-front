@@ -1,0 +1,362 @@
+/**
+ * Chamadas à API da área Empresa.
+ * URLs e parâmetros conforme doc.html e controllers Java.
+ */
+import api from "./api";
+import type {
+  FuncionarioListagemPageResponse,
+  FuncionarioListarParams,
+  FuncionarioCreateRequest,
+  FuncionarioUpdateRequest,
+  FuncionarioResetarSenhaRequest,
+  FuncionarioResetarEmailRequest,
+  SolicitacoesPontoListagemResponse,
+  ReprovarSolicitacaoRequest,
+  FeriasAfastamentosListagemResponse,
+  CriarAfastamentoRequest,
+  GeofenceItemResponse,
+  GeofenceListagemPageResponse,
+  CriarGeofenceRequest,
+  AuditoriaListagemResponse,
+  AuditoriaDetalheResponse,
+  PontoListagemResponse,
+  ResumoBancoHorasResponse,
+  BancoHorasHistoricoPageResponse,
+  FechamentoBancoHorasRequest,
+  BancoHorasCompensacaoRequest,
+  EmpresaPerfilResponse,
+  EmpresaEnderecoRequest,
+  EmpresaResetarSenhaRequest,
+  ConfigInicialStatusResponse,
+  EmpresaConfigInicialRequest,
+  FuncionarioPerfilResponse,
+  MetricasDiariaEmpresaResponse,
+} from "@/types/empresa";
+
+const BASE = "/api/empresa";
+
+/** GET /api/empresa/funcionario — Doc id 18. Params: page, pageSize, nome */
+export function listarFuncionarios(
+  params: FuncionarioListarParams = {}
+): Promise<FuncionarioListagemPageResponse> {
+  const { page = 0, pageSize = 10, nome } = params;
+  return api
+    .get<FuncionarioListagemPageResponse>(`${BASE}/funcionario`, {
+      params: { page, pageSize, ...(nome != null && nome !== "" ? { nome } : {}) },
+    })
+    .then((r) => r.data);
+}
+
+/** POST /api/empresa/funcionario — Doc id 12 */
+export function criarFuncionario(body: FuncionarioCreateRequest): Promise<{ funcionarioId: string }> {
+  return api.post<{ funcionarioId: string }>(`${BASE}/funcionario`, body).then((r) => r.data);
+}
+
+/** PUT /api/empresa/funcionario/:funcionarioId — Doc id 16 */
+export function atualizarFuncionario(
+  funcionarioId: string,
+  body: FuncionarioUpdateRequest
+): Promise<void> {
+  return api.put(`${BASE}/funcionario/${funcionarioId}`, body).then(() => undefined);
+}
+
+/** POST /api/empresa/funcionario/:funcionarioId/resetar-senha — Doc id 13 */
+export function resetarSenhaFuncionario(
+  funcionarioId: string,
+  body: FuncionarioResetarSenhaRequest
+): Promise<void> {
+  return api.post(`${BASE}/funcionario/${funcionarioId}/resetar-senha`, body).then(() => undefined);
+}
+
+/** POST /api/empresa/funcionario/:funcionarioId/resetar-email — Doc id 14 */
+export function resetarEmailFuncionario(
+  funcionarioId: string,
+  body: FuncionarioResetarEmailRequest
+): Promise<void> {
+  return api.post(`${BASE}/funcionario/${funcionarioId}/resetar-email`, body).then(() => undefined);
+}
+
+/** POST /api/empresa/funcionario/:funcionarioId/desbloquear — Doc id 15 */
+export function desbloquearFuncionario(funcionarioId: string): Promise<void> {
+  return api.post(`${BASE}/funcionario/${funcionarioId}/desbloquear`, {}).then(() => undefined);
+}
+
+/** DELETE /api/empresa/funcionario/:funcionarioId — Doc id 17 */
+export function deletarFuncionario(funcionarioId: string): Promise<void> {
+  return api.delete(`${BASE}/funcionario/${funcionarioId}`).then(() => undefined);
+}
+
+/** GET /api/empresa/funcionario/:funcionarioId/perfil — Perfil do funcionário (para empresa editar) */
+export function getPerfilFuncionario(funcionarioId: string): Promise<FuncionarioPerfilResponse> {
+  return api
+    .get<FuncionarioPerfilResponse>(`${BASE}/funcionario/${funcionarioId}/perfil`)
+    .then((r) => r.data);
+}
+
+// --- Solicitações de ponto ---
+
+/** GET /api/empresa/solicitacoes-ponto — Doc id 36. Params: page, size */
+export function listarSolicitacoesPonto(
+  params: { page?: number; size?: number } = {}
+): Promise<SolicitacoesPontoListagemResponse> {
+  const { page = 0, size = 10 } = params;
+  return api
+    .get<SolicitacoesPontoListagemResponse>(`${BASE}/solicitacoes-ponto`, {
+      params: { page, size },
+    })
+    .then((r) => r.data);
+}
+
+/** POST /api/empresa/solicitacoes-ponto/:idRegistroPendente/aprovar — Doc id 37 */
+export function aprovarSolicitacaoPonto(idRegistroPendente: string): Promise<void> {
+  return api.post(`${BASE}/solicitacoes-ponto/${idRegistroPendente}/aprovar`).then(() => undefined);
+}
+
+/** POST /api/empresa/solicitacoes-ponto/:idRegistroPendente/reprovar — Doc id 38 */
+export function reprovarSolicitacaoPonto(
+  idRegistroPendente: string,
+  body: ReprovarSolicitacaoRequest
+): Promise<void> {
+  return api
+    .post(`${BASE}/solicitacoes-ponto/${idRegistroPendente}/reprovar`, body)
+    .then(() => undefined);
+}
+
+// --- Férias e afastamentos ---
+
+/** GET /api/empresa/ferias-afastamentos — Doc id 41. Params: page, size */
+export function listarFeriasAfastamentosEmpresa(
+  params: { page?: number; size?: number } = {}
+): Promise<FeriasAfastamentosListagemResponse> {
+  const { page = 0, size = 10 } = params;
+  return api
+    .get<FeriasAfastamentosListagemResponse>(`${BASE}/ferias-afastamentos`, {
+      params: { page, size },
+    })
+    .then((r) => r.data);
+}
+
+/** GET /api/empresa/funcionario/:funcionarioId/ponto — Doc id 33. Params: ano, mes */
+export function listarPontoFuncionario(
+  funcionarioId: string,
+  ano: number,
+  mes: number
+): Promise<PontoListagemResponse> {
+  return api
+    .get<PontoListagemResponse>(`${BASE}/funcionario/${funcionarioId}/ponto`, {
+      params: { ano, mes },
+    })
+    .then((r) => r.data);
+}
+
+/** DELETE /api/empresa/funcionario/:funcionarioId/registro-ponto/:registroId — Doc id 34 */
+export function deletarRegistroPonto(
+  funcionarioId: string,
+  registroId: string
+): Promise<void> {
+  return api
+    .delete(`${BASE}/funcionario/${funcionarioId}/registro-ponto/${registroId}`)
+    .then(() => undefined);
+}
+
+/** POST /api/empresa/funcionario/:funcionarioId/registro-ponto — Doc id 35 (manual) */
+export function criarRegistroPontoFuncionario(
+  funcionarioId: string,
+  body: { horario: string; justificativa: string; observacao?: string | null }
+): Promise<void> {
+  return api
+    .post(`${BASE}/funcionario/${funcionarioId}/registro-ponto`, body)
+    .then(() => undefined);
+}
+
+/** PUT /api/empresa/funcionario/:funcionarioId/registro-ponto/:registroId — Editar registro (desativa e cria novo) */
+export function editarRegistroPonto(
+  funcionarioId: string,
+  registroId: string,
+  body: { horario: string; justificativa: string; observacao?: string | null }
+): Promise<void> {
+  return api
+    .put(`${BASE}/funcionario/${funcionarioId}/registro-ponto/${registroId}`, body)
+    .then(() => undefined);
+}
+
+/** GET /api/empresa/funcionario/:funcionarioId/ferias-afastamentos — Doc id 40. Params: page, size */
+export function listarFeriasPorFuncionario(
+  funcionarioId: string,
+  params: { page?: number; size?: number } = {}
+): Promise<FeriasAfastamentosListagemResponse> {
+  const { page = 0, size = 10 } = params;
+  return api
+    .get<FeriasAfastamentosListagemResponse>(
+      `${BASE}/funcionario/${funcionarioId}/ferias-afastamentos`,
+      { params: { page, size } }
+    )
+    .then((r) => r.data);
+}
+
+/** GET /api/empresa/funcionario/:funcionarioId/resumo-banco-horas — Doc id 43 */
+export function resumoBancoHoras(funcionarioId: string): Promise<ResumoBancoHorasResponse> {
+  return api
+    .get<ResumoBancoHorasResponse>(`${BASE}/funcionario/${funcionarioId}/resumo-banco-horas`)
+    .then((r) => r.data);
+}
+
+/** GET /api/empresa/funcionario/:funcionarioId/banco-horas-historico — Doc id 44. Params: page, size */
+export function listarBancoHorasHistorico(
+  funcionarioId: string,
+  params: { page?: number; size?: number } = {}
+): Promise<BancoHorasHistoricoPageResponse> {
+  const { page = 0, size = 10 } = params;
+  return api
+    .get<BancoHorasHistoricoPageResponse>(
+      `${BASE}/funcionario/${funcionarioId}/banco-horas-historico`,
+      { params: { page, size } }
+    )
+    .then((r) => r.data);
+}
+
+/** POST /api/empresa/banco-horas/compensacao — Doc id 44b */
+export function registrarCompensacaoBancoHoras(
+  body: BancoHorasCompensacaoRequest
+): Promise<void> {
+  return api.post(`${BASE}/banco-horas/compensacao`, body).then(() => undefined);
+}
+
+/** POST /api/empresa/funcionario/:funcionarioId/banco-horas/fechamento — Doc id 45 */
+export function fechamentoBancoHoras(
+  funcionarioId: string,
+  body: FechamentoBancoHorasRequest
+): Promise<void> {
+  return api
+    .post(`${BASE}/funcionario/${funcionarioId}/banco-horas/fechamento`, body)
+    .then(() => undefined);
+}
+
+/** GET /api/empresa/perfil — Doc id 27 */
+export function getPerfilEmpresa(): Promise<EmpresaPerfilResponse> {
+  return api.get<EmpresaPerfilResponse>(`${BASE}/perfil`).then((r) => r.data);
+}
+
+/** PUT /api/empresa/endereco — Doc id 7 */
+export function atualizarEnderecoEmpresa(
+  body: EmpresaEnderecoRequest
+): Promise<void> {
+  return api.put(`${BASE}/endereco`, body).then(() => undefined);
+}
+
+/** GET /api/empresa/config-inicial/status — primeira vez que a empresa faz login */
+export function getConfigInicialStatus(): Promise<ConfigInicialStatusResponse> {
+  return api.get<ConfigInicialStatusResponse>(`${BASE}/config-inicial/status`).then((r) => r.data);
+}
+
+/** POST /api/empresa/config-inicial — Doc id 8 */
+export function configInicialEmpresa(body: EmpresaConfigInicialRequest): Promise<void> {
+  return api.post(`${BASE}/config-inicial`, body).then(() => undefined);
+}
+
+/** POST /api/empresa/resetar-senha — Doc id 9 */
+export function resetarSenhaEmpresa(body: EmpresaResetarSenhaRequest): Promise<void> {
+  return api.post(`${BASE}/resetar-senha`, body).then(() => undefined);
+}
+
+/** PUT /api/empresa/jornada-padrao — Doc id 10 */
+export function atualizarJornadaPadrao(body: Record<string, unknown>): Promise<void> {
+  return api.put(`${BASE}/jornada-padrao`, body).then(() => undefined);
+}
+
+/** PUT /api/empresa/banco-horas-config — Doc id 11 */
+export function atualizarBancoHorasConfig(body: {
+  empresaBancoHorasConfig: { ativo: boolean; totalDiasVencimento: number };
+}): Promise<void> {
+  return api.put(`${BASE}/banco-horas-config`, body).then(() => undefined);
+}
+
+/** GET /api/empresa/metricas-dia — Métrica do dia (hoje ou última cadastrada). */
+export function getMetricasDia(): Promise<MetricasDiariaEmpresaResponse> {
+  return api.get<MetricasDiariaEmpresaResponse>(`${BASE}/metricas-dia`).then((r) => r.data);
+}
+
+/** GET /api/empresa/metricas-dia/por-periodo — Lista métricas diárias por data início e fim. */
+export function getMetricasDiaPorPeriodo(dataInicio: string, dataFim: string): Promise<MetricasDiariaEmpresaResponse[]> {
+  return api
+    .get<MetricasDiariaEmpresaResponse[]>(`${BASE}/metricas-dia/por-periodo`, {
+      params: { dataInicio, dataFim },
+    })
+    .then((r) => r.data);
+}
+
+/** POST /api/empresa/funcionario/:funcionarioId/afastamentos — Doc id 42 */
+export function criarAfastamento(
+  funcionarioId: string,
+  body: CriarAfastamentoRequest
+): Promise<void> {
+  return api
+    .post(`${BASE}/funcionario/${funcionarioId}/afastamentos`, body)
+    .then(() => undefined);
+}
+
+// --- Geofences ---
+
+/** GET /api/empresa/geofences — Doc id 46. Params: page, size */
+export function listarGeofences(
+  params: { page?: number; size?: number } = {}
+): Promise<GeofenceListagemPageResponse> {
+  const { page = 0, size = 10 } = params;
+  return api.get<GeofenceListagemPageResponse>(`${BASE}/geofences`, { params: { page, size } }).then((r) => r.data);
+}
+
+/** POST /api/empresa/geofences — Doc id 47 */
+export function criarGeofence(body: CriarGeofenceRequest): Promise<void> {
+  return api.post(`${BASE}/geofences`, body).then(() => undefined);
+}
+
+// --- Auditoria ---
+
+/** GET /api/empresa/auditoria — Doc id 50. Params: page, size */
+export function listarAuditoria(
+  params: { page?: number; size?: number } = {}
+): Promise<AuditoriaListagemResponse> {
+  const { page = 0, size = 10 } = params;
+  return api
+    .get<AuditoriaListagemResponse>(`${BASE}/auditoria`, { params: { page, size } })
+    .then((r) => r.data);
+}
+
+/** GET /api/empresa/auditoria/:logId — Doc id 51 */
+export function detalharAuditoria(logId: string): Promise<AuditoriaDetalheResponse> {
+  return api.get<AuditoriaDetalheResponse>(`${BASE}/auditoria/${logId}`).then((r) => r.data);
+}
+
+// --- Relatórios (blob download) ---
+
+export type FormatoRelatorio = "PDF" | "EXCEL";
+
+/** POST /api/empresa/relatorios/ponto-detalhado — Doc id 48. Query: ano, mes, formato */
+export function downloadRelatorioPontoDetalhado(
+  ano: number,
+  mes: number,
+  formato: FormatoRelatorio
+): Promise<Blob> {
+  return api
+    .post(
+      `${BASE}/relatorios/ponto-detalhado`,
+      null,
+      { params: { ano, mes, formato }, responseType: "blob" }
+    )
+    .then((r) => r.data);
+}
+
+/** POST /api/empresa/relatorios/ponto-resumo — Doc id 49. Query: ano, mes, formato */
+export function downloadRelatorioPontoResumo(
+  ano: number,
+  mes: number,
+  formato: FormatoRelatorio
+): Promise<Blob> {
+  return api
+    .post(
+      `${BASE}/relatorios/ponto-resumo`,
+      null,
+      { params: { ano, mes, formato }, responseType: "blob" }
+    )
+    .then((r) => r.data);
+}

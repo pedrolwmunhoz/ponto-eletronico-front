@@ -1,6 +1,8 @@
-import { useState } from "react";
-import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { getConfigInicialStatus } from "@/lib/api-empresa";
 import {
   LayoutDashboard,
   Users,
@@ -17,6 +19,7 @@ import {
   Building2,
   ClipboardList,
   Menu,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -24,19 +27,35 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { to: "/empresa", icon: LayoutDashboard, label: "Dashboard", end: true },
   { to: "/empresa/funcionarios", icon: Users, label: "Funcionários" },
+  { to: "/empresa/espelho-ponto", icon: Clock, label: "Espelho de ponto" },
+  { to: "/empresa/banco-horas", icon: Wallet, label: "Banco de horas" },
   { to: "/empresa/solicitacoes", icon: ClipboardList, label: "Solicitações" },
   { to: "/empresa/ferias", icon: CalendarDays, label: "Férias/Afastamentos" },
-  { to: "/empresa/geofences", icon: MapPin, label: "Geofences" },
+  { to: "/empresa/geofences", icon: MapPin, label: "Áreas de ponto" },
   { to: "/empresa/relatorios", icon: BarChart3, label: "Relatórios" },
   { to: "/empresa/auditoria", icon: Shield, label: "Auditoria" },
   { to: "/empresa/configuracoes", icon: Settings, label: "Configurações" },
   { to: "/empresa/perfil", icon: Building2, label: "Perfil" },
 ];
 
-export function EmpresaLayout() {
+export default function EmpresaLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { logout } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const { data: configStatus } = useQuery({
+    queryKey: ["empresa", "config-inicial-status"],
+    queryFn: getConfigInicialStatus,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (configStatus?.configInicialRealizada === false && !location.pathname.endsWith("/config-inicial")) {
+      navigate("/empresa/config-inicial", { replace: true });
+    }
+  }, [configStatus, location.pathname, navigate]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -61,7 +80,7 @@ export function EmpresaLayout() {
           <Clock className="h-7 w-7 shrink-0 text-sidebar-primary" />
           {!collapsed && (
             <span className="font-display text-lg font-bold tracking-tight text-sidebar-foreground">
-              PontoSaaS
+              PontoSeg
             </span>
           )}
         </div>

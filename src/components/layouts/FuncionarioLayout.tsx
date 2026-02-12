@@ -48,7 +48,7 @@ export function FuncionarioLayout() {
           <Clock className="h-7 w-7 shrink-0 text-sidebar-primary" />
           {!collapsed && (
             <span className="font-display text-lg font-bold tracking-tight text-sidebar-foreground">
-              PontoSaaS
+              PontoSeg
             </span>
           )}
         </div>

@@ -69,11 +69,12 @@ export default function RecuperarSenhaPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-8">
-        <div className="flex flex-col items-center gap-2">
-          <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary">
-            <Clock className="h-7 w-7 text-primary-foreground" />
+        {/* Logo - igual navbar */}
+        <div className="flex justify-center">
+          <div className="flex items-center gap-2 font-bold text-2xl text-primary">
+            <Clock className="h-6 w-6" />
+            PontoSeg
           </div>
-          <h1 className="font-display text-2xl font-bold text-foreground">PontoSaaS</h1>
         </div>
 
         <Card className="border-border shadow-lg">

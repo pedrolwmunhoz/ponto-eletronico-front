@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "@/lib/api";
+import Navbar from "@/components/landing/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -97,30 +98,35 @@ export default function CadastroEmpresaPage() {
   ];
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <div className="w-full max-w-lg space-y-8">
-        <div className="flex flex-col items-center gap-2">
-          <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary">
-            <Clock className="h-7 w-7 text-primary-foreground" />
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      <div className="flex min-h-screen items-center justify-center pt-24 pb-8 px-4">
+        <div className="w-full max-w-lg space-y-8">
+        {/* Logo - igual navbar */}
+        <div className="flex justify-center">
+          <div className="flex items-center gap-2 font-bold text-2xl text-primary">
+            <Clock className="h-6 w-6" />
+            PontoSeg
           </div>
-          <h1 className="font-display text-2xl font-bold text-foreground">PontoSaaS</h1>
         </div>
 
         {/* Progress */}
-        <div className="flex items-center justify-between px-4">
-          {steps.map((s, i) => (
-            <div key={s.n} className="flex items-center gap-2">
-              <div
-                className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
-                  step >= s.n ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                }`}
-              >
-                {s.n}
+        <div className="flex justify-center">
+          <div className="flex items-center gap-1 sm:gap-2">
+            {steps.map((s, i) => (
+              <div key={s.n} className="flex items-center gap-2">
+                <div
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
+                    step >= s.n ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {s.n}
+                </div>
+                <span className={`hidden text-xs sm:block ${step >= s.n ? "text-foreground" : "text-muted-foreground"}`}>{s.label}</span>
+                {i < steps.length - 1 && <div className={`mx-1 h-0.5 w-4 sm:w-8 shrink-0 ${step > s.n ? "bg-primary" : "bg-muted"}`} />}
               </div>
-              <span className={`hidden text-xs sm:block ${step >= s.n ? "text-foreground" : "text-muted-foreground"}`}>{s.label}</span>
-              {i < steps.length - 1 && <div className={`mx-2 h-0.5 w-6 sm:w-10 ${step > s.n ? "bg-primary" : "bg-muted"}`} />}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         <Card className="border-border shadow-lg">
@@ -224,7 +230,11 @@ export default function CadastroEmpresaPage() {
             )}
 
             <div className="flex gap-3 pt-2">
-              {step > 1 && (
+              {step === 1 ? (
+                <Button variant="outline" onClick={() => navigate("/")} className="gap-1">
+                  <ArrowLeft className="h-4 w-4" /> Voltar
+                </Button>
+              ) : (
                 <Button variant="outline" onClick={() => setStep((step - 1) as Step)} className="gap-1">
                   <ArrowLeft className="h-4 w-4" /> Voltar
                 </Button>
@@ -240,14 +250,16 @@ export default function CadastroEmpresaPage() {
                 </Button>
               )}
             </div>
-          </CardContent>
 
-          <div className="px-6 pb-6">
-            <Link to="/login" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="h-3 w-3" /> Já tenho conta
-            </Link>
-          </div>
+            <div className="mt-6 text-center text-sm text-muted-foreground">
+              Já tem conta?{" "}
+              <Link to="/login" className="font-medium text-primary hover:underline">
+                Faça login
+              </Link>
+            </div>
+          </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   );
