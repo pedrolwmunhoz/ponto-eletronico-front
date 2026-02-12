@@ -1,81 +1,178 @@
 # PontoSeg — Frontend
 
-Interface web do sistema de ponto eletrônico SaaS. Área **Empresa** (gestão de funcionários, espelho de ponto, banco de horas, solicitações, férias/afastamentos, relatórios, auditoria) e área **Funcionário** (bater ponto, calendário, banco de horas, férias, perfil).
+Interface web do sistema de ponto eletrônico SaaS: área **Empresa** (gestão) e área **Funcionário** (bater ponto, calendário, banco de horas, férias, perfil). Consome a API REST do backend (JWT, refresh token).
+
+---
 
 ## Stack
 
-- **Vite** — build e dev server
-- **React 18** + **TypeScript**
-- **React Router** — rotas públicas e protegidas por tipo de usuário (EMPRESA / FUNCIONARIO)
-- **TanStack Query** — cache e requisições à API
-- **Axios** — cliente HTTP (base URL configurável em `src/lib/api.ts`)
-- **Tailwind CSS** + **shadcn/ui** (Radix) — UI
-- **Recharts** — gráficos no Dashboard (métricas do mês)
-- **date-fns** — datas
-- **Lucide React** — ícones
-- **Zod** + **React Hook Form** — validação e formulários
+| Tecnologia | Uso |
+|------------|-----|
+| **Vite** | Build e dev server |
+| **React 18** + **TypeScript** | UI |
+| **React Router 6** | Rotas públicas e protegidas por tipo (EMPRESA / FUNCIONARIO) |
+| **TanStack Query** | Cache e requisições à API |
+| **Axios** | Cliente HTTP; base URL em `src/lib/api.ts` (default `http://localhost:8081`) |
+| **Tailwind CSS** | Estilos |
+| **shadcn/ui** (Radix) | Componentes em `src/components/ui/` |
+| **Recharts** | Gráficos no Dashboard (métricas do mês) |
+| **date-fns** | Datas |
+| **Lucide React** | Ícones |
+| **Zod** + **React Hook Form** | Validação e formulários |
+| **Vitest** + **Testing Library** | Testes |
+
+---
 
 ## Pré-requisitos
 
 - Node.js 18+ e npm (ou bun)
 
-## Desenvolvimento
+---
+
+## Comandos
 
 ```bash
-# Instalar dependências
-npm install
-
-# Subir o servidor de desenvolvimento (hot reload)
-npm run dev
+npm install          # dependências
+npm run dev          # dev server (hot reload), ex.: http://localhost:5173
+npm run build        # build de produção → dist/
+npm run build:dev    # build em modo development
+npm run preview      # servir dist/ localmente
+npm run lint         # ESLint
+npm run test         # Vitest (uma execução)
+npm run test:watch   # Vitest em watch
 ```
 
-A aplicação abre em `http://localhost:5173` (ou outra porta indicada no terminal). O front chama a API em `http://localhost:8081` por padrão; altere `API_BASE_URL` em `src/lib/api.ts` se o backend estiver em outra URL.
+A API é chamada em `http://localhost:8081` por padrão; altere em `src/lib/api.ts` se o backend estiver em outra URL.
 
-## Scripts
+---
 
-| Comando        | Descrição                    |
-|----------------|------------------------------|
-| `npm run dev`  | Servidor de desenvolvimento   |
-| `npm run build`| Build de produção            |
-| `npm run build:dev` | Build em modo development |
-| `npm run preview`   | Preview do build de produção |
-| `npm run lint` | ESLint                       |
-| `npm run test` | Vitest (testes unitários)    |
+## Rotas e páginas
 
-## Estrutura principal
+### Públicas (sem login)
+
+| Rota | Página | Arquivo |
+|------|--------|---------|
+| `/` | Landing | `src/pages/Index.tsx` |
+| `/login` | Login | `src/pages/auth/LoginPage.tsx` |
+| `/recuperar-senha` | Recuperar senha | `src/pages/auth/RecuperarSenhaPage.tsx` |
+| `/cadastro` | Cadastro de empresa | `src/pages/auth/CadastroEmpresaPage.tsx` |
+| `*` (qualquer outra) | 404 | `src/pages/NotFound.tsx` |
+
+### Área Empresa (`/empresa/*`)
+
+Protegido por `ProtectedRoute` (tipo EMPRESA). Layout: `EmpresaLayout` (sidebar + outlet).
+
+| Rota | Menu (label) | Página | Arquivo |
+|------|--------------|--------|---------|
+| `/empresa` | Dashboard | Dashboard (métricas + gráficos do mês) | `src/pages/empresa/DashboardPage.tsx` |
+| `/empresa/config-inicial` | — | Configuração inicial (jornada, banco horas, geofences) | `src/pages/empresa/ConfigInicialPage.tsx` |
+| `/empresa/funcionarios` | Funcionários | Listagem e CRUD funcionários | `src/pages/empresa/FuncionariosPage.tsx` |
+| `/empresa/espelho-ponto` | Espelho de ponto | Ponto por funcionário | `src/pages/empresa/PontoFuncionarioPage.tsx` |
+| `/empresa/banco-horas` | Banco de horas | Banco de horas da empresa | `src/pages/empresa/BancoHorasPage.tsx` |
+| `/empresa/solicitacoes` | Solicitações | Solicitações de ponto | `src/pages/empresa/SolicitacoesPage.tsx` |
+| `/empresa/ferias` | Férias/Afastamentos | Férias e afastamentos | `src/pages/empresa/FeriasPage.tsx` |
+| `/empresa/geofences` | Áreas de ponto | Geofences | `src/pages/empresa/GeofencesPage.tsx` |
+| `/empresa/relatorios` | Relatórios | Relatórios (PDF/Excel) | `src/pages/empresa/RelatoriosPage.tsx` |
+| `/empresa/auditoria` | Auditoria | Logs de auditoria | `src/pages/empresa/AuditoriaPage.tsx` |
+| `/empresa/configuracoes` | Configurações | Placeholder | `src/pages/empresa/PlaceholderPage.tsx` |
+| `/empresa/perfil` | Perfil | Perfil da empresa | `src/pages/empresa/PerfilEmpresaPage.tsx` |
+
+### Área Funcionário (`/funcionario/*`)
+
+Protegido por `ProtectedRoute` (tipo FUNCIONARIO). Layout: `FuncionarioLayout`.
+
+| Rota | Menu (label) | Página | Arquivo |
+|------|--------------|--------|---------|
+| `/funcionario` | Bater Ponto | Bater ponto | `src/pages/funcionario/BaterPontoPage.tsx` |
+| `/funcionario/calendario` | Meu Calendário | Calendário de ponto | `src/pages/funcionario/CalendarioPontoPage.tsx` |
+| `/funcionario/banco-horas` | Banco de Horas | Resumo e histórico | `src/pages/funcionario/BancoHorasPage.tsx` |
+| `/funcionario/ferias` | Férias | Férias/afastamentos do funcionário | `src/pages/funcionario/FeriasPage.tsx` |
+| `/funcionario/perfil` | Meu Perfil | Perfil do funcionário | `src/pages/funcionario/PerfilPage.tsx` |
+
+---
+
+## Estrutura do projeto (`src/`)
 
 ```
 src/
-├── App.tsx                 # Rotas (públicas, /empresa/*, /funcionario/*)
+├── App.tsx                    # Rotas (BrowserRouter, ProtectedRoute, AuthProvider)
 ├── main.tsx
-├── components/
-│   ├── layouts/            # EmpresaLayout, FuncionarioLayout (sidebar + outlet)
-│   ├── ui/                 # shadcn (Button, Card, Table, etc.)
-│   └── landing/            # Seções da landing (Index)
-├── contexts/
-│   └── AuthContext.tsx     # Login, logout, tipo de usuário, token
-├── lib/
-│   ├── api.ts              # Axios instance, interceptors (JWT, refresh)
-│   ├── api-empresa.ts      # Chamadas /api/empresa/*
-│   ├── api-funcionario.ts  # Chamadas /api/funcionario/* e registro de ponto
-│   ├── duration.ts         # Helpers para Duration (métricas)
-│   └── token-storage.ts    # Armazenamento do token
+├── index.css
+├── vite-env.d.ts
+│
 ├── pages/
-│   ├── auth/               # Login, recuperar senha, cadastro empresa
-│   ├── empresa/            # Dashboard, funcionários, espelho ponto, banco horas, etc.
-│   └── funcionario/        # Bater ponto, calendário, banco horas, férias, perfil
-└── types/
-    ├── auth.ts
-    └── empresa.ts          # DTOs alinhados ao backend (doc.html)
+│   ├── Index.tsx              # Landing (usa components/landing/*)
+│   ├── NotFound.tsx           # 404
+│   ├── auth/
+│   │   ├── LoginPage.tsx
+│   │   ├── RecuperarSenhaPage.tsx
+│   │   └── CadastroEmpresaPage.tsx
+│   ├── empresa/
+│   │   ├── DashboardPage.tsx
+│   │   ├── ConfigInicialPage.tsx
+│   │   ├── FuncionariosPage.tsx
+│   │   ├── PontoFuncionarioPage.tsx
+│   │   ├── BancoHorasPage.tsx
+│   │   ├── SolicitacoesPage.tsx
+│   │   ├── FeriasPage.tsx
+│   │   ├── GeofencesPage.tsx
+│   │   ├── RelatoriosPage.tsx
+│   │   ├── AuditoriaPage.tsx
+│   │   ├── PlaceholderPage.tsx
+│   │   ├── PerfilEmpresaPage.tsx
+│   └── funcionario/
+│       ├── BaterPontoPage.tsx
+│       ├── CalendarioPontoPage.tsx
+│       ├── BancoHorasPage.tsx
+│       ├── FeriasPage.tsx
+│       └── PerfilPage.tsx
+│
+├── components/
+│   ├── layouts/
+│   │   ├── EmpresaLayout.tsx   # Sidebar empresa + Outlet
+│   │   └── FuncionarioLayout.tsx
+│   ├── landing/                 # Seções da landing (Index)
+│   │   ├── Navbar.tsx
+│   │   ├── HeroSection.tsx
+│   │   ├── ProblemSection.tsx
+│   │   ├── SolutionSection.tsx
+│   │   ├── FeaturesSection.tsx
+│   │   ├── BenefitsSection.tsx
+│   │   ├── HowItWorksSection.tsx
+│   │   ├── TargetAudienceSection.tsx
+│   │   ├── TrustSection.tsx
+│   │   ├── FAQSection.tsx
+│   │   ├── FinalCTASection.tsx
+│   │   └── Footer.tsx
+│   ├── ui/                     # shadcn (Radix + Tailwind): button, card, table, dialog, form, etc.
+│   ├── NavLink.tsx
+│   └── ProtectedRoute.tsx      # Redireciona se não autenticado ou tipo errado
+│
+├── contexts/
+│   └── AuthContext.tsx         # Login, logout, user type, token
+│
+├── hooks/
+│   ├── use-mobile.tsx
+│   └── use-toast.ts
+│
+├── lib/
+│   ├── api.ts                  # Axios instance, interceptors (JWT, refresh)
+│   ├── api-empresa.ts          # GET/POST/PUT/DELETE /api/empresa/*
+│   ├── api-funcionario.ts      # /api/funcionario/* e registro de ponto
+│   ├── duration.ts             # Helpers Duration (métricas)
+│   ├── token-storage.ts        # Persistência do token
+│   └── utils.ts                # cn, etc.
+│
+├── types/
+│   ├── auth.ts
+│   └── empresa.ts              # DTOs alinhados ao backend (doc.html)
+│
+└── test/
+    ├── setup.ts
+    └── example.test.ts
 ```
 
-## Rotas
-
-- **Públicas:** `/`, `/login`, `/recuperar-senha`, `/cadastro`
-- **Empresa** (após login com tipo EMPRESA): `/empresa` (Dashboard), `/empresa/funcionarios`, `/empresa/espelho-ponto`, `/empresa/banco-horas`, `/empresa/solicitacoes`, `/empresa/ferias`, `/empresa/geofences`, `/empresa/relatorios`, `/empresa/auditoria`, `/empresa/configuracoes`, `/empresa/perfil`, `/empresa/config-inicial`
-- **Funcionário** (após login com tipo FUNCIONARIO): `/funcionario` (bater ponto), `/funcionario/calendario`, `/funcionario/banco-horas`, `/funcionario/ferias`, `/funcionario/perfil`
-
-O Dashboard exibe cards de métricas (funcionários, solicitações pendentes, total do dia, registros hoje) e gráficos do mês (horas acumuladas, horas por dia, total registro de pontos acumulado e por dia, total de funcionários).
+---
 
 ## Build para produção
 
@@ -83,4 +180,4 @@ O Dashboard exibe cards de métricas (funcionários, solicitações pendentes, t
 npm run build
 ```
 
-Saída em `dist/`. Para servir: `npm run preview` ou use o output em qualquer servidor estático (Nginx, etc.), garantindo que rotas client-side (ex.: `/empresa/perfil`) sejam redirecionadas para `index.html` se o projeto usar roteamento apenas no cliente.
+Saída em `dist/`. Para SPA: configurar servidor (Nginx, etc.) para redirecionar todas as rotas para `index.html` quando necessário.
