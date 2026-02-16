@@ -663,7 +663,7 @@ export default function FuncionariosPage() {
                 Áreas de ponto <Badge className="text-[10px] px-1.5 py-0 font-normal border-0 bg-amber-100 text-amber-800">Opcional</Badge>
               </TabsTrigger>
             </TabsList>
-            <TabsContent value="dados" className="space-y-4 pt-4">
+            <TabsContent value="dados" className="space-y-4 pt-4 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden">
               <div className="space-y-2">
                 <Label required>Nome completo</Label>
                 <Input

@@ -191,11 +191,11 @@ export default function GeofencesPage() {
               Nova área de ponto
             </Button>
           </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
+          <DialogContent className="max-h-[90vh] flex flex-col overflow-hidden">
+            <DialogHeader className="flex-shrink-0">
               <DialogTitle>Nova área de ponto</DialogTitle>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <div className="grid gap-4 py-4 overflow-y-auto min-h-0 flex-1">
               <div className="grid gap-2">
                 <Label htmlFor="nome" required>Nome</Label>
                 <Input
@@ -338,7 +338,7 @@ export default function GeofencesPage() {
                 </div>
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="flex-shrink-0">
               <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
               <Button onClick={handleSubmit} disabled={criarMutation.isPending}>
                 {criarMutation.isPending ? "Salvando..." : "Criar"}
