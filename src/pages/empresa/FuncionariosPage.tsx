@@ -55,6 +55,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useValidation } from "@/hooks/useValidation";
 import { formatCpf, maskCpfInput } from "@/lib/format";
@@ -162,6 +163,10 @@ export default function FuncionariosPage() {
   const [formOpen, setFormOpen] = useState<"create" | "edit" | null>(null);
   const [editTarget, setEditTarget] = useState<FuncionarioListagemResponse | null>(null);
   const [form, setForm] = useState<FuncionarioCreateRequest>(emptyForm());
+  const [ativarTelefone, setAtivarTelefone] = useState(false);
+  const [ativarContrato, setAtivarContrato] = useState(false);
+  const [ativarJornada, setAtivarJornada] = useState(false);
+  const [ativarGeofences, setAtivarGeofences] = useState(false);
   const [senhaNova, setSenhaNova] = useState("");
   const [emailNovo, setEmailNovo] = useState("");
   const [resetSenhaTarget, setResetSenhaTarget] = useState<FuncionarioListagemResponse | null>(null);
@@ -303,6 +308,10 @@ export default function FuncionariosPage() {
       jornadaFuncionarioConfig: emptyJornada(),
       geofenceIds: [],
     });
+    setAtivarTelefone(false);
+    setAtivarContrato(false);
+    setAtivarJornada(false);
+    setAtivarGeofences(false);
     setEditTarget(null);
     setFormOpen("create");
   };
@@ -314,6 +323,10 @@ export default function FuncionariosPage() {
       const p = await getPerfilFuncionario(f.usuarioId);
       const j = p.jornadaFuncionarioConfig;
       const toTime = (v: string | undefined) => (v && v.length >= 5 ? v.slice(0, 5) : "08:00");
+      setAtivarTelefone(!!p.usuarioTelefone);
+      setAtivarContrato(!!p.contratoFuncionario);
+      setAtivarJornada(!!j);
+      setAtivarGeofences((p.geofenceIds?.length ?? 0) > 0);
       setForm({
         username: p.username ?? "",
         nomeCompleto: p.nomeCompleto ?? "",
@@ -351,12 +364,14 @@ export default function FuncionariosPage() {
   };
 
   const buildTelefone = () => {
+    if (!ativarTelefone) return null;
     const t = form.usuarioTelefone;
     if (!t?.codigoPais?.trim() || !t?.ddd?.trim() || !t?.numero?.trim()) return null;
     return { codigoPais: t.codigoPais.trim(), ddd: t.ddd.trim(), numero: t.numero.trim() };
   };
 
   const buildContrato = (): ContratoFuncionarioRequest | null => {
+    if (!ativarContrato) return null;
     const c = form.contratoFuncionario;
     if (!c || !c.cargo?.trim() || !c.tipoContratoId || !c.dataAdmissao?.trim() || c.salarioMensal == null || c.salarioHora == null) return null;
     return {
@@ -374,6 +389,7 @@ export default function FuncionariosPage() {
   };
 
   const buildJornada = (): JornadaFuncionarioConfigRequest | null => {
+    if (!ativarJornada) return null;
     const j = form.jornadaFuncionarioConfig;
     if (!j || !j.tipoEscalaJornadaId || !j.cargaHorariaDiaria || !j.cargaHorariaSemanal || !j.entradaPadrao || !j.saidaPadrao || !j.intervaloPadrao) return null;
     return {
@@ -398,7 +414,7 @@ export default function FuncionariosPage() {
       ["cpf", form.cpf ?? "", (v) => validateCpf(v, true)],
       ["email", form.email ?? "", (v) => validateEmail(v, true)],
       ["senha", form.senha ?? "", (v) => validateSenha(v, true)],
-      ["cargo", form.contratoFuncionario?.cargo ?? "", (v) => validateCargo(v, true)],
+      ...(ativarContrato ? [["cargo", form.contratoFuncionario?.cargo ?? "", (v: string) => validateCargo(v, true)]] : []),
     ]);
     if (!ok) {
       toast({ variant: "destructive", title: "Corrija os erros antes de salvar." });
@@ -446,7 +462,7 @@ export default function FuncionariosPage() {
       usuarioTelefone: buildTelefone(),
       contratoFuncionario: buildContrato(),
       jornadaFuncionarioConfig: buildJornada(),
-      geofenceIds: form.geofenceIds?.length ? form.geofenceIds : null,
+      geofenceIds: ativarGeofences && form.geofenceIds?.length ? form.geofenceIds : null,
     };
     updateMutation.mutate({ id: editTarget.usuarioId, body });
   };
@@ -641,31 +657,31 @@ export default function FuncionariosPage() {
 
       {/* Dialog Criar / Editar funcionário */}
       <Dialog open={formOpen !== null} onOpenChange={(open) => !open && setFormOpen(null)}>
-        <DialogContent className="max-w-3xl w-[95vw] max-h-[92vh] min-h-[70vh] flex flex-col overflow-hidden px-8 py-6">
-          <DialogHeader className="flex-shrink-0 pb-2">
-            <DialogTitle>{formOpen === "create" ? "Novo funcionário" : "Editar funcionário"}</DialogTitle>
+        <DialogContent className="max-w-3xl w-[95vw] max-h-[92vh] min-h-[60vh] sm:min-h-[70vh] flex flex-col overflow-hidden px-4 py-4 sm:px-8 sm:py-6">
+          <DialogHeader className="flex-shrink-0 pb-1 sm:pb-2">
+            <DialogTitle className="text-base sm:text-lg">{formOpen === "create" ? "Novo funcionário" : "Editar funcionário"}</DialogTitle>
           </DialogHeader>
           <Tabs defaultValue="dados" className="w-full flex flex-col flex-1 min-h-0">
-            <TabsList className="flex flex-wrap gap-1 flex-shrink-0 mb-6">
-              <TabsTrigger value="dados" className="gap-1.5">
-                Dados <Badge className="text-[10px] px-1.5 py-0 font-normal border-0 bg-blue-100 text-blue-800">Obrigatório</Badge>
+            <TabsList className="flex flex-wrap gap-0.5 flex-shrink-0 mb-3 h-auto p-0.5 sm:gap-1 sm:mb-6">
+              <TabsTrigger value="dados" className="gap-1 text-xs px-2 py-1.5 sm:gap-1.5 sm:px-3 sm:py-2 sm:text-sm">
+                Dados <Badge className="text-[9px] px-1 py-0 font-normal border-0 bg-blue-100 text-blue-800 sm:text-[10px] sm:px-1.5">Obrigatório</Badge>
               </TabsTrigger>
-              <TabsTrigger value="telefone" className="gap-1.5">
-                Telefone <Badge className="text-[10px] px-1.5 py-0 font-normal border-0 bg-amber-100 text-amber-800">Opcional</Badge>
+              <TabsTrigger value="telefone" className="gap-1 text-xs px-2 py-1.5 sm:gap-1.5 sm:px-3 sm:py-2 sm:text-sm">
+                Telefone <Badge className="text-[9px] px-1 py-0 font-normal border-0 bg-amber-100 text-amber-800 sm:text-[10px] sm:px-1.5">Opcional</Badge>
               </TabsTrigger>
-              <TabsTrigger value="contrato" className="gap-1.5">
-                Contrato <Badge className="text-[10px] px-1.5 py-0 font-normal border-0 bg-amber-100 text-amber-800">Opcional</Badge>
+              <TabsTrigger value="contrato" className="gap-1 text-xs px-2 py-1.5 sm:gap-1.5 sm:px-3 sm:py-2 sm:text-sm">
+                Contrato <Badge className="text-[9px] px-1 py-0 font-normal border-0 bg-amber-100 text-amber-800 sm:text-[10px] sm:px-1.5">Opcional</Badge>
               </TabsTrigger>
-              <TabsTrigger value="jornada" className="gap-1.5">
-                Jornada <Badge className="text-[10px] px-1.5 py-0 font-normal border-0 bg-amber-100 text-amber-800">Opcional</Badge>
+              <TabsTrigger value="jornada" className="gap-1 text-xs px-2 py-1.5 sm:gap-1.5 sm:px-3 sm:py-2 sm:text-sm">
+                Jornada <Badge className="text-[9px] px-1 py-0 font-normal border-0 bg-amber-100 text-amber-800 sm:text-[10px] sm:px-1.5">Opcional</Badge>
               </TabsTrigger>
-              <TabsTrigger value="geofences" className="gap-1.5">
-                Áreas de ponto <Badge className="text-[10px] px-1.5 py-0 font-normal border-0 bg-amber-100 text-amber-800">Opcional</Badge>
+              <TabsTrigger value="geofences" className="gap-1 text-xs px-2 py-1.5 sm:gap-1.5 sm:px-3 sm:py-2 sm:text-sm">
+                Áreas <Badge className="text-[9px] px-1 py-0 font-normal border-0 bg-amber-100 text-amber-800 sm:text-[10px] sm:px-1.5">Opcional</Badge>
               </TabsTrigger>
             </TabsList>
-            <TabsContent value="dados" className="space-y-4 pt-4 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden">
-              <div className="space-y-2">
-                <Label required>Nome completo</Label>
+            <TabsContent value="dados" className="space-y-3 pt-2 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden sm:space-y-4 sm:pt-4">
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label required className="text-xs sm:text-sm">Nome completo</Label>
                 <Input
                   value={form.nomeCompleto}
                   onChange={(e) => {
@@ -685,9 +701,9 @@ export default function FuncionariosPage() {
                 />
                 <FieldExpectedStatus fieldKey="nomeCompleto" value={form.nomeCompleto ?? ""} error={getError("nomeCompleto")} touched={getTouched("nomeCompleto")} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label required>Primeiro nome</Label>
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                <div className="space-y-1.5 sm:space-y-2">
+                  <Label required className="text-xs sm:text-sm">Primeiro nome</Label>
                   <Input
                     value={form.primeiroNome}
                     onChange={(e) => {
@@ -696,11 +712,12 @@ export default function FuncionariosPage() {
                     }}
                     onBlur={() => handleBlur("primeiroNome", form.primeiroNome ?? "", (x) => validatePrimeiroNome(x, true))}
                     placeholder="Ex: João"
+                    className="h-9 text-sm sm:h-10 sm:text-base"
                   />
                   <FieldExpectedStatus fieldKey="primeiroNome" value={form.primeiroNome ?? ""} error={getError("primeiroNome")} touched={getTouched("primeiroNome")} />
                 </div>
-                <div className="space-y-2">
-                  <Label required>Sobrenome</Label>
+                <div className="space-y-1.5 sm:space-y-2">
+                  <Label required className="text-xs sm:text-sm">Sobrenome</Label>
                   <Input
                     value={form.ultimoNome}
                     onChange={(e) => {
@@ -709,11 +726,12 @@ export default function FuncionariosPage() {
                     }}
                     onBlur={() => handleBlur("ultimoNome", form.ultimoNome ?? "", (x) => validateUltimoNome(x, true))}
                     placeholder="Ex: Silva"
+                    className="h-9 text-sm sm:h-10 sm:text-base"
                   />
                   <FieldExpectedStatus fieldKey="ultimoNome" value={form.ultimoNome ?? ""} error={getError("ultimoNome")} touched={getTouched("ultimoNome")} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2">
                   <Label required>Usuário (login)</Label>
                   <Input
@@ -742,7 +760,7 @@ export default function FuncionariosPage() {
                   <FieldExpectedStatus fieldKey="cpf" value={form.cpf ?? ""} error={getError("cpf")} touched={getTouched("cpf")} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2">
                   <Label>Data nascimento (opcional)</Label>
                   <Input
@@ -754,7 +772,7 @@ export default function FuncionariosPage() {
                   />
                 </div>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1.5 sm:space-y-2">
                 <Label required>E-mail</Label>
                 <Input
                   type="email"
@@ -785,9 +803,16 @@ export default function FuncionariosPage() {
                 </div>
               )}
             </TabsContent>
-            <TabsContent value="telefone" className="space-y-4 pt-4 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden">
-              <p className="text-sm text-muted-foreground">Opcional. Preencha para cadastrar telefone.</p>
-              <div className="grid grid-cols-3 gap-2">
+            <TabsContent value="telefone" className="space-y-3 pt-2 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden sm:space-y-4 sm:pt-4">
+              <div className="flex items-center justify-between gap-2 rounded-lg border p-3 sm:p-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium sm:text-base">Incluir telefone</p>
+                  <p className="text-xs text-muted-foreground sm:text-sm">Ao ativar, o telefone será enviado na request.</p>
+                </div>
+                <Switch checked={ativarTelefone} onCheckedChange={setAtivarTelefone} className="shrink-0" />
+              </div>
+              <p className="text-xs text-muted-foreground sm:text-sm">Preencha para cadastrar telefone.</p>
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 <div className="space-y-2">
                   <Label required>Cód. país</Label>
                   <Input
@@ -839,11 +864,18 @@ export default function FuncionariosPage() {
               </div>
             </TabsContent>
             <TabsContent value="contrato" className="space-y-4 pt-4 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden">
-              <p className="text-sm text-muted-foreground">Opcional. Preencha todos os campos obrigatórios para enviar contrato.</p>
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div>
+                  <p className="font-medium">Incluir contrato</p>
+                  <p className="text-sm text-muted-foreground">Ao ativar, o contrato será enviado na request.</p>
+                </div>
+                <Switch checked={ativarContrato} onCheckedChange={setAtivarContrato} />
+              </div>
+              <p className="text-sm text-muted-foreground">Preencha todos os campos obrigatórios para enviar contrato.</p>
               {form.contratoFuncionario && (
                 <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                    <div className="space-y-1.5 sm:space-y-2">
                       <Label>Matrícula (opcional)</Label>
                       <Input
                         value={form.contratoFuncionario.matricula ?? ""}
@@ -874,7 +906,7 @@ export default function FuncionariosPage() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-2">
                       <Label required>Cargo</Label>
                       <Input
@@ -906,8 +938,8 @@ export default function FuncionariosPage() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                    <div className="space-y-1.5 sm:space-y-2">
                       <Label required>Tipo de contrato</Label>
                       <Select
                         value={form.contratoFuncionario.tipoContratoId ? String(form.contratoFuncionario.tipoContratoId) : ""}
@@ -949,7 +981,7 @@ export default function FuncionariosPage() {
                       <Label htmlFor="contrato-ativo">Contrato ativo</Label>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-2">
                       <Label required>Data admissão</Label>
                       <Input
@@ -983,8 +1015,8 @@ export default function FuncionariosPage() {
                       </div>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                    <div className="space-y-1.5 sm:space-y-2">
                       <Label>Salário mensal</Label>
                       <Input
                         type="number"
@@ -1024,11 +1056,18 @@ export default function FuncionariosPage() {
                 </>
               )}
             </TabsContent>
-            <TabsContent value="jornada" className="space-y-4 pt-4 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden">
-              <p className="text-sm text-muted-foreground">Opcional. Durações no formato 08:00 (horas:minutos), convertidas em PT internamente.</p>
+            <TabsContent value="jornada" className="space-y-3 pt-2 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden sm:space-y-4 sm:pt-4">
+              <div className="flex items-center justify-between gap-2 rounded-lg border p-3 sm:p-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium sm:text-base">Incluir jornada</p>
+                  <p className="text-xs text-muted-foreground sm:text-sm">Ao ativar, a configuração de jornada será enviada na request.</p>
+                </div>
+                <Switch checked={ativarJornada} onCheckedChange={setAtivarJornada} className="shrink-0" />
+              </div>
+              <p className="text-xs text-muted-foreground sm:text-sm">Durações no formato 08:00 (horas:minutos), convertidas em PT internamente.</p>
               {form.jornadaFuncionarioConfig && (
                 <>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-2">
 <Label required>Tipo de escala jornada</Label>
                         <Select
@@ -1071,7 +1110,7 @@ export default function FuncionariosPage() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-2">
                       <Label required>Carga semanal</Label>
                       <Input
@@ -1103,7 +1142,7 @@ export default function FuncionariosPage() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-2">
                       <Label required>Intervalo</Label>
                       <Input
@@ -1135,7 +1174,7 @@ export default function FuncionariosPage() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-2">
                       <Label>Entrada padrão</Label>
                       <Input
@@ -1185,8 +1224,15 @@ export default function FuncionariosPage() {
                 </>
               )}
             </TabsContent>
-            <TabsContent value="geofences" className="space-y-4 pt-4 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden">
-              <p className="text-sm text-muted-foreground">Opcional. Selecione as áreas de ponto às quais o funcionário terá acesso.</p>
+            <TabsContent value="geofences" className="space-y-3 pt-2 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden sm:space-y-4 sm:pt-4">
+              <div className="flex items-center justify-between gap-2 rounded-lg border p-3 sm:p-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium sm:text-base">Incluir áreas de ponto</p>
+                  <p className="text-xs text-muted-foreground sm:text-sm">Ao ativar, as áreas selecionadas serão enviadas na request.</p>
+                </div>
+                <Switch checked={ativarGeofences} onCheckedChange={setAtivarGeofences} className="shrink-0" />
+              </div>
+              <p className="text-xs text-muted-foreground sm:text-sm">Selecione as áreas de ponto às quais o funcionário terá acesso.</p>
               {geofencesList.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhuma área de ponto cadastrada. Cadastre em Áreas de ponto.</p>
               ) : (
@@ -1216,11 +1262,13 @@ export default function FuncionariosPage() {
               )}
             </TabsContent>
           </Tabs>
-          <DialogFooter className="flex-shrink-0 pt-4 border-t mt-4">
-            <Button variant="outline" onClick={() => setFormOpen(null)}>
+          <DialogFooter className="flex-shrink-0 gap-2 pt-3 border-t mt-3 sm:pt-4 sm:mt-4">
+            <Button variant="outline" size="sm" onClick={() => setFormOpen(null)} className="text-xs sm:text-sm">
               Cancelar
             </Button>
             <Button
+              size="sm"
+              className="text-xs sm:text-sm"
               onClick={formOpen === "create" ? handleSubmitCreate : handleSubmitEdit}
               disabled={
                 createMutation.isPending ||
