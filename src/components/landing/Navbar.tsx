@@ -72,28 +72,26 @@ const Navbar = () => {
           ))}
         </nav>
 
-        {/* Desktop - Login + CTA à direita */}
-        <div className="hidden md:flex items-center gap-4 ml-auto shrink-0">
+        {/* Direita: Login + CTA (desktop) / Login + Menu (mobile) */}
+        <div className="flex items-center gap-2 sm:gap-4 ml-auto shrink-0">
           {isLanding && (
             <Link
               to="/login"
-              className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+              className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors whitespace-nowrap"
             >
               Login
             </Link>
           )}
-          <Button size="sm" onClick={handleCtaClick}>
+          <Button size="sm" onClick={handleCtaClick} className="hidden md:inline-flex">
             {ctaLabel}
           </Button>
-        </div>
 
-        {/* Mobile */}
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild className="md:hidden">
-            <Button variant="ghost" size="icon">
-              <Menu className="h-5 w-5" />
-            </Button>
-          </SheetTrigger>
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild className="md:hidden">
+              <Button variant="ghost" size="icon" aria-label="Menu">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
           <SheetContent side="right" className="w-64">
             <SheetTitle className="sr-only">Menu</SheetTitle>
             <div className="flex flex-col gap-6 mt-8">
@@ -114,7 +112,7 @@ const Navbar = () => {
               <Button onClick={handleCtaClick}>{ctaLabel}</Button>
             </div>
           </SheetContent>
-        </Sheet>
+          </Sheet>
       </div>
     </header>
   );

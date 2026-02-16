@@ -10,7 +10,7 @@ const HeroSection = () => {
       <div className="container mx-auto px-4">
         <div className="grid md:grid-cols-2 gap-12 items-center">
           {/* Copy */}
-          <div className="space-y-6">
+          <div className="space-y-6 mt-8 md:mt-0">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight text-foreground">
               Sua empresa está protegida contra{" "}
               <span className="text-primary">processos trabalhistas</span>?
