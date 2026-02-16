@@ -72,47 +72,43 @@ const Navbar = () => {
           ))}
         </nav>
 
-        {/* Direita: Login + CTA (desktop) / Login + Menu (mobile) */}
-        <div className="flex items-center gap-2 sm:gap-4 ml-auto shrink-0">
+        {/* Direita: Login sempre visível + CTA (desktop) + Menu hamburger (mobile) */}
+        <div className="flex items-center gap-2 sm:gap-4 ml-auto shrink-0 min-w-0">
           {isLanding && (
             <Link
               to="/login"
-              className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors whitespace-nowrap"
+              className="shrink-0 text-sm font-medium text-muted-foreground hover:text-primary transition-colors whitespace-nowrap"
             >
               Login
             </Link>
           )}
-          <Button size="sm" onClick={handleCtaClick} className="hidden md:inline-flex">
+          <Button size="sm" onClick={handleCtaClick} className="hidden md:inline-flex shrink-0">
             {ctaLabel}
           </Button>
 
           <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild className="md:hidden">
+            <SheetTrigger asChild className="md:hidden shrink-0">
               <Button variant="ghost" size="icon" aria-label="Menu">
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-          <SheetContent side="right" className="w-64">
-            <SheetTitle className="sr-only">Menu</SheetTitle>
-            <div className="flex flex-col gap-6 mt-8">
-              {navLinks.map((link) => (
-                <button
-                  key={link.href}
-                  onClick={() => handleNavClick(link.href)}
-                  className="text-left text-base font-medium text-foreground"
-                >
-                  {link.label}
-                </button>
-              ))}
-              {isLanding && (
-                <Link to="/login" className="text-left text-base font-medium text-muted-foreground hover:text-primary transition-colors">
-                  Login
-                </Link>
-              )}
-              <Button onClick={handleCtaClick}>{ctaLabel}</Button>
-            </div>
-          </SheetContent>
+            <SheetContent side="right" className="w-64">
+              <SheetTitle className="sr-only">Menu</SheetTitle>
+              <div className="flex flex-col gap-6 mt-8">
+                {navLinks.map((link) => (
+                  <button
+                    key={link.href}
+                    onClick={() => handleNavClick(link.href)}
+                    className="text-left text-base font-medium text-foreground"
+                  >
+                    {link.label}
+                  </button>
+                ))}
+                <Button onClick={handleCtaClick} className="w-full">{ctaLabel}</Button>
+              </div>
+            </SheetContent>
           </Sheet>
+        </div>
       </div>
     </header>
   );
