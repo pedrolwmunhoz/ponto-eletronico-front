@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { cn } from "@/lib/utils";
 import { Users, Search, Plus, Trash2, MoreVertical, Pencil, Key, Mail, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -812,10 +813,11 @@ export default function FuncionariosPage() {
                 <Switch checked={ativarTelefone} onCheckedChange={setAtivarTelefone} className="shrink-0" />
               </div>
               <p className="text-xs text-muted-foreground sm:text-sm">Preencha para cadastrar telefone.</p>
-              <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              <div className={cn("grid grid-cols-3 gap-2 sm:gap-3", !ativarTelefone && "opacity-60 pointer-events-none")}>
                 <div className="space-y-2">
                   <Label required>Cód. país</Label>
                   <Input
+                    disabled={!ativarTelefone}
                     value={form.usuarioTelefone?.codigoPais ?? "55"}
                     onChange={(e) =>
                       setForm((prev) => ({
@@ -832,6 +834,7 @@ export default function FuncionariosPage() {
                 <div className="space-y-2">
                   <Label required>DDD</Label>
                   <Input
+                    disabled={!ativarTelefone}
                     value={form.usuarioTelefone?.ddd ?? ""}
                     onChange={(e) =>
                       setForm((prev) => ({
@@ -848,6 +851,7 @@ export default function FuncionariosPage() {
                 <div className="space-y-2">
                   <Label required>Número</Label>
                   <Input
+                    disabled={!ativarTelefone}
                     value={form.usuarioTelefone?.numero ?? ""}
                     onChange={(e) =>
                       setForm((prev) => ({
@@ -873,11 +877,12 @@ export default function FuncionariosPage() {
               </div>
               <p className="text-sm text-muted-foreground">Preencha todos os campos obrigatórios para enviar contrato.</p>
               {form.contratoFuncionario && (
-                <>
+                <div className={cn(!ativarContrato && "opacity-60 pointer-events-none")}>
                   <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-1.5 sm:space-y-2">
                       <Label>Matrícula (opcional)</Label>
                       <Input
+                        disabled={!ativarContrato}
                         value={form.contratoFuncionario.matricula ?? ""}
                         onChange={(e) =>
                           setForm((prev) => ({
@@ -925,6 +930,7 @@ export default function FuncionariosPage() {
                     <div className="space-y-2">
                       <Label>Departamento (opcional)</Label>
                       <Input
+                        disabled={!ativarContrato}
                         value={form.contratoFuncionario.departamento ?? ""}
                         onChange={(e) =>
                           setForm((prev) => ({
@@ -953,7 +959,7 @@ export default function FuncionariosPage() {
                           }));
                         }}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger disabled={!ativarContrato}>
                           <SelectValue placeholder="Selecione o tipo" />
                         </SelectTrigger>
                         <SelectContent>
@@ -985,6 +991,7 @@ export default function FuncionariosPage() {
                     <div className="space-y-2">
                       <Label required>Data admissão</Label>
                       <Input
+                        disabled={!ativarContrato}
                         type="date"
                         value={form.contratoFuncionario.dataAdmissao}
                         onChange={(e) =>
@@ -1001,6 +1008,7 @@ export default function FuncionariosPage() {
                       <div className="space-y-2">
                         <Label>Data demissão (opcional)</Label>
                         <Input
+                          disabled={!ativarContrato}
                           type="date"
                           value={form.contratoFuncionario.dataDemissao ?? ""}
                           onChange={(e) =>
@@ -1019,6 +1027,7 @@ export default function FuncionariosPage() {
                     <div className="space-y-1.5 sm:space-y-2">
                       <Label>Salário mensal</Label>
                       <Input
+                        disabled={!ativarContrato}
                         type="number"
                         step="0.01"
                         min={0}
@@ -1037,6 +1046,7 @@ export default function FuncionariosPage() {
                     <div className="space-y-2">
                       <Label>Salário hora</Label>
                       <Input
+                        disabled={!ativarContrato}
                         type="number"
                         step="0.01"
                         min={0}
@@ -1053,7 +1063,7 @@ export default function FuncionariosPage() {
                       />
                     </div>
                   </div>
-                </>
+                </div>
               )}
             </TabsContent>
             <TabsContent value="jornada" className="space-y-3 pt-2 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden sm:space-y-4 sm:pt-4">
@@ -1066,11 +1076,11 @@ export default function FuncionariosPage() {
               </div>
               <p className="text-xs text-muted-foreground sm:text-sm">Durações no formato 08:00 (horas:minutos), convertidas em PT internamente.</p>
               {form.jornadaFuncionarioConfig && (
-                <>
+                <div className={cn(!ativarJornada && "opacity-60 pointer-events-none")}>
                   <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-2">
-<Label required>Tipo de escala jornada</Label>
-                        <Select
+                      <Label required>Tipo de escala jornada</Label>
+                      <Select
                         value={form.jornadaFuncionarioConfig.tipoEscalaJornadaId ? String(form.jornadaFuncionarioConfig.tipoEscalaJornadaId) : ""}
                         onValueChange={(v) => {
                           const id = v ? parseInt(v, 10) : 0;
@@ -1082,7 +1092,7 @@ export default function FuncionariosPage() {
                           }));
                         }}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger disabled={!ativarJornada}>
                           <SelectValue placeholder="Selecione a escala" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1097,6 +1107,7 @@ export default function FuncionariosPage() {
                     <div className="space-y-2">
                       <Label>Carga diária</Label>
                       <Input
+                        disabled={!ativarJornada}
                         value={durationToHHmm(form.jornadaFuncionarioConfig.cargaHorariaDiaria ?? "")}
                         onChange={(e) =>
                           setForm((prev) => ({
@@ -1114,6 +1125,7 @@ export default function FuncionariosPage() {
                     <div className="space-y-2">
                       <Label required>Carga semanal</Label>
                       <Input
+                        disabled={!ativarJornada}
                         value={durationToHHmm(form.jornadaFuncionarioConfig.cargaHorariaSemanal ?? "")}
                         onChange={(e) =>
                           setForm((prev) => ({
@@ -1129,6 +1141,7 @@ export default function FuncionariosPage() {
                     <div className="space-y-2">
                       <Label required>Tolerância</Label>
                       <Input
+                        disabled={!ativarJornada}
                         value={durationToHHmm(form.jornadaFuncionarioConfig.toleranciaPadrao ?? "PT0S")}
                         onChange={(e) =>
                           setForm((prev) => ({
@@ -1146,6 +1159,7 @@ export default function FuncionariosPage() {
                     <div className="space-y-2">
                       <Label required>Intervalo</Label>
                       <Input
+                        disabled={!ativarJornada}
                         value={durationToHHmm(form.jornadaFuncionarioConfig.intervaloPadrao ?? "")}
                         onChange={(e) =>
                           setForm((prev) => ({
@@ -1161,6 +1175,7 @@ export default function FuncionariosPage() {
                     <div className="space-y-2">
                       <Label required>Descanso entre jornadas</Label>
                       <Input
+                        disabled={!ativarJornada}
                         value={durationToHHmm(form.jornadaFuncionarioConfig.tempoDescansoEntreJornada ?? "")}
                         onChange={(e) =>
                           setForm((prev) => ({
@@ -1178,6 +1193,7 @@ export default function FuncionariosPage() {
                     <div className="space-y-2">
                       <Label>Entrada padrão</Label>
                       <Input
+                        disabled={!ativarJornada}
                         type="time"
                         value={form.jornadaFuncionarioConfig.entradaPadrao}
                         onChange={(e) =>
@@ -1193,6 +1209,7 @@ export default function FuncionariosPage() {
                     <div className="space-y-2">
                       <Label required>Saída padrão</Label>
                       <Input
+                        disabled={!ativarJornada}
                         type="time"
                         value={form.jornadaFuncionarioConfig.saidaPadrao}
                         onChange={(e) =>
@@ -1209,6 +1226,7 @@ export default function FuncionariosPage() {
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id="grava-geo"
+                      disabled={!ativarJornada}
                       checked={form.jornadaFuncionarioConfig.gravaGeoObrigatoria}
                       onCheckedChange={(checked) =>
                         setForm((prev) => ({
@@ -1221,7 +1239,7 @@ export default function FuncionariosPage() {
                     />
                     <Label htmlFor="grava-geo">Gravação de geolocalização obrigatória</Label>
                   </div>
-                </>
+                </div>
               )}
             </TabsContent>
             <TabsContent value="geofences" className="space-y-3 pt-2 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden sm:space-y-4 sm:pt-4">
@@ -1236,7 +1254,7 @@ export default function FuncionariosPage() {
               {geofencesList.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhuma área de ponto cadastrada. Cadastre em Áreas de ponto.</p>
               ) : (
-                <div className="max-h-48 overflow-y-auto space-y-2 rounded-md border p-3">
+                <div className={cn("max-h-48 overflow-y-auto space-y-2 rounded-md border p-3", !ativarGeofences && "opacity-60 pointer-events-none")}>
                   {geofencesList.map((g) => {
                     const id = g.id;
                     const checked = form.geofenceIds?.includes(id) ?? false;
@@ -1245,6 +1263,7 @@ export default function FuncionariosPage() {
                         key={id}
                         className="flex items-center gap-2 cursor-pointer select-none py-1.5 px-2 rounded hover:bg-muted/50"
                         onClick={() =>
+                          ativarGeofences &&
                           setForm((prev) => {
                             const ids = prev.geofenceIds ?? [];
                             const next = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
@@ -1252,7 +1271,7 @@ export default function FuncionariosPage() {
                           })
                         }
                       >
-                        <Checkbox checked={checked} onCheckedChange={() => {}} />
+                        <Checkbox disabled={!ativarGeofences} checked={checked} onCheckedChange={() => {}} />
                         <span className="text-sm font-medium">{g.nome}</span>
                         <span className="text-xs text-muted-foreground">({g.coordenadas})</span>
                       </div>
