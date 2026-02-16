@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ClipboardList, Check, X } from "lucide-react";
+import { ClipboardList, Check, X, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -32,7 +32,10 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { FieldExpectedStatus } from "@/components/ui/field-with-expected";
 import { useToast } from "@/hooks/use-toast";
+import { useValidation } from "@/hooks/useValidation";
+import { validateMotivo } from "@/lib/validations";
 import {
   listarSolicitacoesPonto,
   aprovarSolicitacaoPonto,
@@ -57,19 +60,39 @@ function statusBadge(status: string) {
   return "bg-amber-100 text-amber-800";
 }
 
-export default function SolicitacoesPage() {
+function SolicitacoesPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { getError, getTouched, handleBlur, handleChange, validateAll } = useValidation();
   const [page, setPage] = useState(0);
   const [size] = useState(10);
+  const [nome, setNome] = useState("");
+  const [nomeInput, setNomeInput] = useState("");
   const [reprovarTarget, setReprovarTarget] = useState<SolicitacaoPontoItemResponse | null>(null);
   const [motivo, setMotivo] = useState("");
   const [observacao, setObservacao] = useState("");
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["empresa", "solicitacoes-ponto", page, size],
-    queryFn: () => listarSolicitacoesPonto({ page, size }),
+    queryKey: ["empresa", "solicitacoes-ponto", page, size, nome],
+    queryFn: () => listarSolicitacoesPonto({ page, size, nome: nome || undefined }),
   });
+
+  useEffect(() => {
+    if (isError && error) {
+      const msg = (error as { response?: { data?: { mensagem?: string } }; message?: string })?.response?.data?.mensagem ?? (error as Error)?.message ?? "Erro ao carregar solicitações.";
+      toast({ variant: "destructive", title: "Erro", description: msg });
+    }
+  }, [isError, error, toast]);
+
+  const handleSearch = () => {
+    setNome(nomeInput.trim());
+    setPage(0);
+  };
+  const handleClearSearch = () => {
+    setNomeInput("");
+    setNome("");
+    setPage(0);
+  };
 
   const aprovarMutation = useMutation({
     mutationFn: (id: string) => aprovarSolicitacaoPonto(id),
@@ -78,11 +101,7 @@ export default function SolicitacoesPage() {
       toast({ title: "Solicitação aprovada" });
     },
     onError: (err: any) => {
-      toast({
-        variant: "destructive",
-        title: "Erro ao aprovar",
-        description: err.response?.data?.message ?? "Não foi possível aprovar.",
-      });
+      toast({ variant: "destructive", title: "Erro", description: err.response?.data?.mensagem ?? "Não foi possível aprovar." });
     },
   });
 
@@ -97,20 +116,13 @@ export default function SolicitacoesPage() {
       toast({ title: "Solicitação reprovada" });
     },
     onError: (err: any) => {
-      toast({
-        variant: "destructive",
-        title: "Erro ao reprovar",
-        description: err.response?.data?.message ?? "Não foi possível reprovar.",
-      });
+      toast({ variant: "destructive", title: "Erro", description: err.response?.data?.mensagem ?? "Não foi possível reprovar." });
     },
   });
 
   const handleReprovarSubmit = () => {
+    if (!validateAll([["motivo", motivo, (v) => validateMotivo(v, true)]])) return;
     const m = motivo.trim();
-    if (!m) {
-      toast({ variant: "destructive", title: "Motivo é obrigatório" });
-      return;
-    }
     if (reprovarTarget) {
       reprovarMutation.mutate({
         id: reprovarTarget.id,
@@ -131,24 +143,38 @@ export default function SolicitacoesPage() {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4">
           <CardTitle className="flex items-center gap-2 text-base">
             <ClipboardList className="h-5 w-5" />
             Pendências
           </CardTitle>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              placeholder="Buscar por nome..."
+              value={nomeInput}
+              onChange={(e) => setNomeInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              className="w-48"
+            />
+            <Button variant="secondary" size="sm" onClick={handleSearch} className="gap-1">
+              <Search className="h-4 w-4" />
+              Buscar
+            </Button>
+            {(nome || nomeInput) && (
+              <Button variant="ghost" size="sm" onClick={handleClearSearch}>
+                Limpar
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading && (
             <div className="py-8 text-center text-sm text-muted-foreground">Carregando...</div>
           )}
-          {isError && (
-            <div className="py-8 text-center text-sm text-destructive">
-              {(error as Error)?.message ?? "Erro ao carregar solicitações."}
-            </div>
-          )}
-          {!isLoading && !isError && data && (
+          {!isLoading && (data || isError) && (
             <>
-              <Table>
+              <div className="h-[600px] overflow-y-auto rounded-md border">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Funcionário</TableHead>
@@ -160,14 +186,14 @@ export default function SolicitacoesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.items.length === 0 ? (
+                  {(data?.items ?? []).length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                         Nenhuma solicitação encontrada.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    data.items.map((s) => (
+                    (data?.items ?? []).map((s) => (
                       <TableRow key={s.id}>
                         <TableCell className="font-medium">{s.nomeFuncionario ?? "—"}</TableCell>
                         <TableCell>{s.tipo ?? "—"}</TableCell>
@@ -210,9 +236,10 @@ export default function SolicitacoesPage() {
                   )}
                 </TableBody>
               </Table>
+              </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t pt-4">
                   <p className="text-sm text-muted-foreground">
-                    Página {page + 1} de {totalPaginas} • {data.total} registro(s)
+                    Página {page + 1} de {totalPaginas} • {data?.total ?? 0} registro(s)
                   </p>
                   <Pagination>
                     <PaginationContent>
@@ -275,13 +302,17 @@ export default function SolicitacoesPage() {
           </AlertDialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="motivo">Motivo *</Label>
+              <Label htmlFor="motivo" required>Motivo</Label>
               <Input
                 id="motivo"
                 value={motivo}
-                onChange={(e) => setMotivo(e.target.value)}
+                onChange={(e) => { setMotivo(e.target.value); handleChange("motivo", e.target.value, (v) => validateMotivo(v, true)); }}
+                onBlur={() => handleBlur("motivo", motivo, (v) => validateMotivo(v, true))}
                 placeholder="Ex: Horário fora do permitido"
+                aria-invalid={!!getError("motivo")}
+                className="mt-1"
               />
+              <FieldExpectedStatus fieldKey="motivo" value={motivo} error={getError("motivo")} touched={getTouched("motivo")} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="observacao">Observação (opcional)</Label>
@@ -312,3 +343,5 @@ export default function SolicitacoesPage() {
     </div>
   );
 }
+
+export default SolicitacoesPage;

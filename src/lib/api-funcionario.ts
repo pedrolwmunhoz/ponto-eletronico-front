@@ -6,7 +6,7 @@ import api from "./api";
 import type {
   FeriasAfastamentosListagemResponse,
   FuncionarioPerfilResponse,
-  PontoListagemResponse,
+  PontoDiaResponse,
   ResumoBancoHorasResponse,
   BancoHorasHistoricoPageResponse,
   RegistroPontoManualRequest,
@@ -17,51 +17,72 @@ export function getPerfilFuncionario(): Promise<FuncionarioPerfilResponse> {
   return api.get<FuncionarioPerfilResponse>("/api/funcionario/perfil").then((r) => r.data);
 }
 
-/** GET /api/funcionario/:funcionarioId/ponto — Doc id 28. Params: ano, mes. (funcionarioId = usuário logado) */
+/** GET /api/funcionario/:funcionarioId/ponto — Doc id 28. Params: ano, mes. Backend retorna array de jornadas. */
 export function listarMeuPonto(
   funcionarioId: string,
   ano: number,
   mes: number
-): Promise<PontoListagemResponse> {
+): Promise<PontoDiaResponse[]> {
   return api
-    .get<PontoListagemResponse>(`/api/funcionario/${funcionarioId}/ponto`, {
+    .get<PontoDiaResponse[]>(`/api/funcionario/${funcionarioId}/ponto`, {
       params: { ano, mes },
     })
     .then((r) => r.data);
 }
 
-/** POST /api/empresa/funcionario/registro-ponto — Doc id 31. Batida pelo app; data/hora no servidor. Body opcional (registroMetadados: geo, assinatura). */
-export function registrarPontoApp(body?: { registroMetadados?: { geoLatitude?: number; geoLongitude?: number; assinaturaDigital?: string; certificadoSerial?: string; timestampAssinatura?: string } }): Promise<void> {
-  return api.post("/api/empresa/funcionario/registro-ponto", body ?? {}).then(() => undefined);
+/** POST /api/empresa/funcionario/registro-ponto — Doc id 31. Batida pelo app; data/hora no servidor. Header Idempotency-Key obrigatório. */
+export function registrarPontoApp(
+  idempotencyKey: string,
+  body?: { registroMetadados?: { geoLatitude?: number; geoLongitude?: number; assinaturaDigital?: string; certificadoSerial?: string; timestampAssinatura?: string } }
+): Promise<void> {
+  return api
+    .post("/api/empresa/funcionario/registro-ponto", body ?? {}, {
+      headers: { "Idempotency-Key": idempotencyKey },
+    })
+    .then(() => undefined);
 }
 
-/** POST /api/funcionario/registro-ponto/manual — Doc id 29 */
-export function registrarPontoManual(body: RegistroPontoManualRequest): Promise<void> {
-  return api.post("/api/funcionario/registro-ponto/manual", body).then(() => undefined);
+/** POST /api/funcionario/registro-ponto/manual — Doc id 29. Header Idempotency-Key obrigatório. */
+export function registrarPontoManual(
+  idempotencyKey: string,
+  body: RegistroPontoManualRequest
+): Promise<void> {
+  return api
+    .post("/api/funcionario/registro-ponto/manual", body, {
+      headers: { "Idempotency-Key": idempotencyKey },
+    })
+    .then(() => undefined);
 }
 
-/** GET /api/empresa/funcionario/:id/resumo-banco-horas — Doc id 43 (funcionário usa mesmo endpoint com próprio id) */
+/** DELETE /api/empresa/registro-ponto/:idRegistro — Doc id 33. Solicitação de remoção ou remoção direta conforme config empresa. */
+export function deletarRegistroFuncionario(
+  idRegistro: string,
+  body?: { geoLatitude?: number; geoLongitude?: number; assinaturaDigital?: string; certificadoSerial?: string; timestampAssinatura?: string }
+): Promise<void> {
+  return api
+    .delete(`/api/empresa/registro-ponto/${idRegistro}`, { data: body ?? {} })
+    .then(() => undefined);
+}
+
+/** GET /api/usuario/banco-horas/resumo — Resumo do próprio funcionário (JWT SCOPE_FUNCIONARIO) */
 export function resumoBancoHorasFuncionario(
-  funcionarioId: string
+  _funcionarioId?: string
 ): Promise<ResumoBancoHorasResponse> {
   return api
-    .get<ResumoBancoHorasResponse>(
-      `/api/empresa/funcionario/${funcionarioId}/resumo-banco-horas`
-    )
+    .get<ResumoBancoHorasResponse>("/api/usuario/banco-horas/resumo")
     .then((r) => r.data);
 }
 
-/** GET /api/empresa/funcionario/:id/banco-horas-historico — Doc id 44 (funcionário usa mesmo endpoint) */
+/** GET /api/usuario/banco-horas/historico — Histórico do próprio funcionário (JWT SCOPE_FUNCIONARIO) */
 export function listarBancoHorasHistoricoFuncionario(
-  funcionarioId: string,
+  _funcionarioId?: string,
   params: { page?: number; size?: number } = {}
 ): Promise<BancoHorasHistoricoPageResponse> {
   const { page = 0, size = 10 } = params;
   return api
-    .get<BancoHorasHistoricoPageResponse>(
-      `/api/empresa/funcionario/${funcionarioId}/banco-horas-historico`,
-      { params: { page, size } }
-    )
+    .get<BancoHorasHistoricoPageResponse>("/api/usuario/banco-horas/historico", {
+      params: { page, size },
+    })
     .then((r) => r.data);
 }
 

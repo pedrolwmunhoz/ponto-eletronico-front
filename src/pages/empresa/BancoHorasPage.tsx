@@ -86,7 +86,7 @@ export default function BancoHorasPage() {
       toast({
         variant: "destructive",
         title: "Erro",
-        description: err.response?.data?.message ?? "Não foi possível registrar compensação.",
+        description: err.response?.data?.mensagem ?? "Não foi possível registrar compensação.",
       });
     },
   });
@@ -104,7 +104,7 @@ export default function BancoHorasPage() {
       toast({
         variant: "destructive",
         title: "Erro",
-        description: err.response?.data?.message ?? "Não foi possível realizar fechamento.",
+        description: err.response?.data?.mensagem ?? "Não foi possível realizar fechamento.",
       });
     },
   });
@@ -192,7 +192,8 @@ export default function BancoHorasPage() {
                 <p className="text-sm text-muted-foreground">Nenhum registro no histórico.</p>
               ) : (
                 <>
-                  <Table>
+                  <div className="h-[600px] overflow-y-auto rounded-md border">
+                    <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Ano/Mês</TableHead>
@@ -214,6 +215,7 @@ export default function BancoHorasPage() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                   {totalPaginas > 1 && (
                     <div className="mt-4 flex justify-center">
                       <Pagination>

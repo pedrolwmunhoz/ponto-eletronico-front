@@ -4,6 +4,8 @@
  */
 import api from "./api";
 import type {
+  EspelhoPontoListagemPageResponse,
+  EspelhoPontoListarParams,
   FuncionarioListagemPageResponse,
   FuncionarioListarParams,
   FuncionarioCreateRequest,
@@ -14,6 +16,9 @@ import type {
   ReprovarSolicitacaoRequest,
   FeriasAfastamentosListagemResponse,
   CriarAfastamentoRequest,
+  FeriadoListagemPageResponse,
+  CriarFeriadoRequest,
+  EditarFeriadoRequest,
   GeofenceItemResponse,
   GeofenceListagemPageResponse,
   CriarGeofenceRequest,
@@ -95,14 +100,14 @@ export function getPerfilFuncionario(funcionarioId: string): Promise<Funcionario
 
 // --- Solicitações de ponto ---
 
-/** GET /api/empresa/solicitacoes-ponto — Doc id 36. Params: page, size */
+/** GET /api/empresa/solicitacoes-ponto — Doc id 36. Params: page, size, nome */
 export function listarSolicitacoesPonto(
-  params: { page?: number; size?: number } = {}
+  params: { page?: number; size?: number; nome?: string } = {}
 ): Promise<SolicitacoesPontoListagemResponse> {
-  const { page = 0, size = 10 } = params;
+  const { page = 0, size = 10, nome } = params;
   return api
     .get<SolicitacoesPontoListagemResponse>(`${BASE}/solicitacoes-ponto`, {
-      params: { page, size },
+      params: { page, size, ...(nome != null && nome !== "" ? { nome } : {}) },
     })
     .then((r) => r.data);
 }
@@ -124,14 +129,32 @@ export function reprovarSolicitacaoPonto(
 
 // --- Férias e afastamentos ---
 
-/** GET /api/empresa/ferias-afastamentos — Doc id 41. Params: page, size */
+/** GET /api/empresa/ferias-afastamentos — Doc id 41. Params: page, size, nome */
 export function listarFeriasAfastamentosEmpresa(
-  params: { page?: number; size?: number } = {}
+  params: { page?: number; size?: number; nome?: string } = {}
 ): Promise<FeriasAfastamentosListagemResponse> {
-  const { page = 0, size = 10 } = params;
+  const { page = 0, size = 10, nome } = params;
   return api
     .get<FeriasAfastamentosListagemResponse>(`${BASE}/ferias-afastamentos`, {
-      params: { page, size },
+      params: { page, size, ...(nome != null && nome !== "" ? { nome } : {}) },
+    })
+    .then((r) => r.data);
+}
+
+/** GET /api/empresa/espelho-ponto/listagem — Doc id 40b. Params: page, pageSize, nome, ano, mes */
+export function listagemEspelhoPonto(
+  params: EspelhoPontoListarParams = {}
+): Promise<EspelhoPontoListagemPageResponse> {
+  const { page = 0, pageSize = 20, nome, ano, mes } = params;
+  return api
+    .get<EspelhoPontoListagemPageResponse>(`${BASE}/espelho-ponto/listagem`, {
+      params: {
+        page,
+        pageSize,
+        ...(nome != null && nome !== "" ? { nome } : {}),
+        ...(ano != null ? { ano } : {}),
+        ...(mes != null ? { mes } : {}),
+      },
     })
     .then((r) => r.data);
 }
@@ -159,24 +182,32 @@ export function deletarRegistroPonto(
     .then(() => undefined);
 }
 
-/** POST /api/empresa/funcionario/:funcionarioId/registro-ponto — Doc id 35 (manual) */
+/** POST /api/empresa/funcionario/:funcionarioId/registro-ponto — Doc id 35 (manual). Header Idempotency-Key obrigatório. */
 export function criarRegistroPontoFuncionario(
   funcionarioId: string,
-  body: { horario: string; justificativa: string; observacao?: string | null }
+  body: { horario: string; justificativa: string; observacao?: string | null },
+  idempotencyKey?: string
 ): Promise<void> {
+  const key = idempotencyKey ?? crypto.randomUUID();
   return api
-    .post(`${BASE}/funcionario/${funcionarioId}/registro-ponto`, body)
+    .post(`${BASE}/funcionario/${funcionarioId}/registro-ponto`, body, {
+      headers: { "Idempotency-Key": key },
+    })
     .then(() => undefined);
 }
 
-/** PUT /api/empresa/funcionario/:funcionarioId/registro-ponto/:registroId — Editar registro (desativa e cria novo) */
+/** PUT /api/empresa/funcionario/:funcionarioId/registro-ponto/:registroId — Editar registro (desativa e cria novo). Header Idempotency-Key obrigatório. */
 export function editarRegistroPonto(
   funcionarioId: string,
   registroId: string,
-  body: { horario: string; justificativa: string; observacao?: string | null }
+  body: { horario: string; justificativa: string; observacao?: string | null },
+  idempotencyKey?: string
 ): Promise<void> {
+  const key = idempotencyKey ?? crypto.randomUUID();
   return api
-    .put(`${BASE}/funcionario/${funcionarioId}/registro-ponto/${registroId}`, body)
+    .put(`${BASE}/funcionario/${funcionarioId}/registro-ponto/${registroId}`, body, {
+      headers: { "Idempotency-Key": key },
+    })
     .then(() => undefined);
 }
 
@@ -293,6 +324,38 @@ export function criarAfastamento(
   return api
     .post(`${BASE}/funcionario/${funcionarioId}/afastamentos`, body)
     .then(() => undefined);
+}
+
+// --- Feriados ---
+
+/** GET /api/empresa/feriados — Doc id 57. Params: page, size, observacao (opcional). */
+export function listarFeriados(
+  params: { page?: number; size?: number; observacao?: string } = {}
+): Promise<FeriadoListagemPageResponse> {
+  const { page = 0, size = 20, observacao } = params;
+  const query: Record<string, string | number> = { page, size };
+  if (observacao != null && observacao.trim() !== "") query.observacao = observacao.trim();
+  return api
+    .get<FeriadoListagemPageResponse>(`${BASE}/feriados`, { params: query })
+    .then((r) => r.data);
+}
+
+/** POST /api/empresa/feriados — Doc id 58. Empresa só pode ESTADUAL ou MUNICIPAL. */
+export function criarFeriado(body: CriarFeriadoRequest): Promise<void> {
+  return api.post(`${BASE}/feriados`, body).then(() => undefined);
+}
+
+/** PUT /api/empresa/feriados/:feriadoId — Doc id 59 */
+export function editarFeriado(
+  feriadoId: string,
+  body: EditarFeriadoRequest
+): Promise<void> {
+  return api.put(`${BASE}/feriados/${feriadoId}`, body).then(() => undefined);
+}
+
+/** DELETE /api/empresa/feriados/:feriadoId — Doc id 60 */
+export function excluirFeriado(feriadoId: string): Promise<void> {
+  return api.delete(`${BASE}/feriados/${feriadoId}`).then(() => undefined);
 }
 
 // --- Geofences ---

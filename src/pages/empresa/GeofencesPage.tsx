@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MapPin, Plus, Locate } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useValidation } from "@/hooks/useValidation";
+import {
+  validateNomeGeofence,
+  validateDescricaoGeofence,
+  validateLatitude,
+  validateLongitude,
+  validateRaioMetros,
+} from "@/lib/validations";
+import { FieldExpectedStatus } from "@/components/ui/field-with-expected";
 import { listarGeofences, criarGeofence, listarFuncionarios } from "@/lib/api-empresa";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -25,7 +34,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 
-function formatInstant(s: string) {
+function formatDateTime(s: string) {
   if (!s) return "—";
   try {
     return new Date(s).toLocaleString("pt-BR");
@@ -37,6 +46,7 @@ function formatInstant(s: string) {
 export default function GeofencesPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { getError, getTouched, handleBlur, handleChange, validateAll } = useValidation();
   const [open, setOpen] = useState(false);
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
@@ -53,6 +63,13 @@ export default function GeofencesPage() {
     queryKey: ["empresa", "geofences", page, pageSize],
     queryFn: () => listarGeofences({ page, size: pageSize }),
   });
+
+  useEffect(() => {
+    if (isError && error) {
+      const msg = (error as { response?: { data?: { mensagem?: string } }; message?: string })?.response?.data?.mensagem ?? (error as Error)?.message ?? "Erro ao carregar.";
+      toast({ variant: "destructive", title: "Erro", description: msg });
+    }
+  }, [isError, error, toast]);
 
   const { data: funcionariosData } = useQuery({
     queryKey: ["empresa", "funcionarios", 0, 500],
@@ -78,7 +95,7 @@ export default function GeofencesPage() {
       toast({
         variant: "destructive",
         title: "Erro ao criar",
-        description: err.response?.data?.message ?? "Tente novamente.",
+        description: err.response?.data?.mensagem ?? "Tente novamente.",
       });
     },
   });
@@ -116,14 +133,29 @@ export default function GeofencesPage() {
     );
   };
 
+  const validadoresGeofence = {
+    nome: (v: string) => validateNomeGeofence(v, true),
+    descricao: (v: string) => validateDescricaoGeofence(v, true),
+    latitude: (v: string) => validateLatitude(v),
+    longitude: (v: string) => validateLongitude(v),
+    raioMetros: (v: string) => validateRaioMetros(v, true),
+  };
+
   const handleSubmit = () => {
+    const ok = validateAll([
+      ["nome", nome, validadoresGeofence.nome],
+      ["descricao", descricao, validadoresGeofence.descricao],
+      ["latitude", latitude, validadoresGeofence.latitude],
+      ["longitude", longitude, validadoresGeofence.longitude],
+      ["raioMetros", raioMetros, validadoresGeofence.raioMetros],
+    ]);
+    if (!ok) {
+      toast({ variant: "destructive", title: "Corrija os campos antes de criar." });
+      return;
+    }
     const lat = parseFloat(latitude);
     const lng = parseFloat(longitude);
     const raio = parseInt(raioMetros, 10);
-    if (!nome.trim() || !descricao.trim() || isNaN(lat) || isNaN(lng) || isNaN(raio) || raio < 1) {
-      toast({ variant: "destructive", title: "Preencha nome, descrição, latitude, longitude e raio (número)." });
-      return;
-    }
     criarMutation.mutate({
       nome: nome.trim(),
       descricao: descricao.trim(),
@@ -165,16 +197,30 @@ export default function GeofencesPage() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="nome">Nome *</Label>
-                <Input id="nome" value={nome} onChange={(e) => setNome(e.target.value)} />
+                <Label htmlFor="nome" required>Nome</Label>
+                <Input
+                  id="nome"
+                  value={nome}
+                  onChange={(e) => { setNome(e.target.value); handleChange("nome", e.target.value, validadoresGeofence.nome); }}
+                  onBlur={() => handleBlur("nome", nome, validadoresGeofence.nome)}
+                  aria-invalid={!!getError("nome")}
+                />
+                <FieldExpectedStatus fieldKey="nome" value={nome} error={getError("nome")} touched={getTouched("nome")} />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="descricao">Descrição *</Label>
-                <Input id="descricao" value={descricao} onChange={(e) => setDescricao(e.target.value)} />
+                <Label htmlFor="descricao" required>Descrição</Label>
+                <Input
+                  id="descricao"
+                  value={descricao}
+                  onChange={(e) => { setDescricao(e.target.value); handleChange("descricao", e.target.value, validadoresGeofence.descricao); }}
+                  onBlur={() => handleBlur("descricao", descricao, validadoresGeofence.descricao)}
+                  aria-invalid={!!getError("descricao")}
+                />
+                <FieldExpectedStatus fieldKey="descricao" value={descricao} error={getError("descricao")} touched={getTouched("descricao")} />
               </div>
               <div className="grid gap-2">
                 <div className="flex items-end justify-between gap-2">
-                  <Label className="shrink-0">Coordenadas *</Label>
+                  <Label className="shrink-0" required>Coordenadas</Label>
                   <Button
                     type="button"
                     variant="outline"
@@ -190,38 +236,47 @@ export default function GeofencesPage() {
                 <p className="text-xs text-muted-foreground">Quando o navegador pedir permissão, escolha &quot;Permitir&quot; e marque &quot;Lembrar&quot; ou &quot;Sempre&quot; para não perguntar de novo.</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="latitude">Latitude</Label>
+                    <Label htmlFor="latitude" required>Latitude</Label>
                     <Input
                       id="latitude"
                       type="number"
                       step="any"
                       value={latitude}
-                      onChange={(e) => setLatitude(e.target.value)}
+                      onChange={(e) => { setLatitude(e.target.value); handleChange("latitude", e.target.value, validadoresGeofence.latitude); }}
+                      onBlur={() => handleBlur("latitude", latitude, validadoresGeofence.latitude)}
                       placeholder="-23.5505"
+                      aria-invalid={!!getError("latitude")}
                     />
+                    <FieldExpectedStatus fieldKey="latitude" value={latitude} error={getError("latitude")} touched={getTouched("latitude")} />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="longitude">Longitude</Label>
+                    <Label htmlFor="longitude" required>Longitude</Label>
                     <Input
                       id="longitude"
                       type="number"
                       step="any"
                       value={longitude}
-                      onChange={(e) => setLongitude(e.target.value)}
+                      onChange={(e) => { setLongitude(e.target.value); handleChange("longitude", e.target.value, validadoresGeofence.longitude); }}
+                      onBlur={() => handleBlur("longitude", longitude, validadoresGeofence.longitude)}
                       placeholder="-46.6333"
+                      aria-invalid={!!getError("longitude")}
                     />
+                    <FieldExpectedStatus fieldKey="longitude" value={longitude} error={getError("longitude")} touched={getTouched("longitude")} />
                   </div>
                 </div>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="raioMetros">Raio (metros) *</Label>
+                <Label htmlFor="raioMetros" required>Raio (metros)</Label>
                 <Input
                   id="raioMetros"
                   type="number"
                   min={1}
                   value={raioMetros}
-                  onChange={(e) => setRaioMetros(e.target.value)}
+                  onChange={(e) => { setRaioMetros(e.target.value); handleChange("raioMetros", e.target.value, validadoresGeofence.raioMetros); }}
+                  onBlur={() => handleBlur("raioMetros", raioMetros, validadoresGeofence.raioMetros)}
+                  aria-invalid={!!getError("raioMetros")}
                 />
+                <FieldExpectedStatus fieldKey="raioMetros" value={raioMetros} error={getError("raioMetros")} touched={getTouched("raioMetros")} />
               </div>
               <div className="grid gap-2 mt-8">
                 <div className="flex items-center gap-2">
@@ -304,20 +359,15 @@ export default function GeofencesPage() {
           {isLoading && (
             <div className="py-8 text-center text-sm text-muted-foreground">Carregando...</div>
           )}
-          {isError && (
-            <div className="py-8 text-center text-sm text-destructive">
-              {(error as Error)?.message ?? "Erro ao carregar."}
-            </div>
-          )}
-          {!isLoading && !isError && data && (
+          {!isLoading && (data || isError) && (
             <>
             <div className="space-y-3">
-              {data.conteudo.length === 0 ? (
+              {(data?.conteudo ?? []).length === 0 ? (
                 <div className="py-8 text-center text-muted-foreground text-sm">
                   Nenhuma área de ponto cadastrada.
                 </div>
               ) : (
-                data.conteudo.map((g, idx) => (
+                (data?.conteudo ?? []).map((g, idx) => (
                   <div
                     key={idx}
                     className="border border-border rounded-lg p-4"
@@ -354,14 +404,14 @@ export default function GeofencesPage() {
                       </div>
                     </div>
                     <div className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border">
-                      <p>Criado em: {formatInstant(g.createdAt)}</p>
-                      <p>Atualizado em: {formatInstant(g.updatedAt)}</p>
+                      <p>Criado em: {formatDateTime(g.createdAt)}</p>
+                      <p>Atualizado em: {formatDateTime(g.updatedAt)}</p>
                     </div>
                   </div>
                 ))
               )}
             </div>
-            {data.paginacao && data.conteudo.length > 0 && (
+            {data?.paginacao && (data?.conteudo?.length ?? 0) > 0 && (
               <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t pt-4">
                 <p className="text-sm text-muted-foreground">
                   Página {data.paginacao.paginaAtual + 1} de {data.paginacao.totalPaginas}

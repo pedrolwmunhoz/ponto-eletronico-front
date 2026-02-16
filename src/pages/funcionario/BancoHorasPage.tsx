@@ -103,7 +103,8 @@ export default function BancoHorasFuncionarioPage() {
                 <p className="text-sm text-muted-foreground">Nenhum registro no histórico.</p>
               ) : (
                 <>
-                  <Table>
+                  <div className="h-[600px] overflow-y-auto rounded-md border">
+                    <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Ano/Mês</TableHead>
@@ -127,6 +128,7 @@ export default function BancoHorasFuncionarioPage() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                   {totalPaginas > 1 && (
                     <div className="mt-4 flex items-center justify-between">
                       <p className="text-sm text-muted-foreground">

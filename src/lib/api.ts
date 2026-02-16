@@ -1,7 +1,8 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { tokenStorage } from "./token-storage";
 
-const API_BASE_URL = "http://localhost:8081";
+/** URL da API. Produção: .env.production (Render). Dev: localhost ou VITE_API_URL. */
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8081";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -81,6 +82,13 @@ api.interceptors.response.use(
       } finally {
         isRefreshing = false;
       }
+    }
+
+    // 403 Forbidden — token válido mas sem permissão (ex.: SCOPE FUNCIONARIO em área EMPRESA)
+    if (error.response?.status === 403) {
+      tokenStorage.clearTokens();
+      window.location.href = "/login?unauthorized=1";
+      return Promise.reject(error);
     }
 
     return Promise.reject(error);

@@ -13,10 +13,12 @@ export interface TelefoneListagemDto {
   numero: string;
 }
 
+/** Listagem exibe primeiroNome + ultimoNome na tabela. */
 export interface FuncionarioListagemResponse {
   usuarioId: string;
+  primeiroNome: string;
+  ultimoNome: string;
   username: string;
-  tipo: string;
   emails: string[];
   telefones: TelefoneListagemDto[];
 }
@@ -31,6 +33,28 @@ export interface FuncionarioListarParams {
   page?: number;
   pageSize?: number;
   nome?: string;
+}
+
+/** GET /api/empresa/espelho-ponto/listagem — Doc id 40b */
+export interface EspelhoPontoListagemResponse {
+  usuarioId: string;
+  nomeCompleto: string;
+  totalHorasEsperadas: string;
+  totalHorasTrabalhadas: string;
+  totalHorasTrabalhadasFeriado: string;
+}
+
+export interface EspelhoPontoListagemPageResponse {
+  paginacao: Paginacao;
+  conteudo: EspelhoPontoListagemResponse[];
+}
+
+export interface EspelhoPontoListarParams {
+  page?: number;
+  pageSize?: number;
+  nome?: string;
+  ano?: number;
+  mes?: number;
 }
 
 /** Telefone (usuario_telefone). Doc id 12/16. */
@@ -113,6 +137,8 @@ export interface JornadaFuncionarioConfigRequest {
 export interface FuncionarioCreateRequest {
   username: string;
   nomeCompleto: string;
+  primeiroNome: string;
+  ultimoNome: string;
   cpf: string;
   dataNascimento?: string | null;
   email: string;
@@ -127,6 +153,8 @@ export interface FuncionarioCreateRequest {
 export interface FuncionarioUpdateRequest {
   username: string;
   nomeCompleto: string;
+  primeiroNome: string;
+  ultimoNome: string;
   cpf: string;
   dataNascimento?: string | null;
   email: string;
@@ -206,6 +234,7 @@ export interface EmpresaPerfilResponse {
   cnpj: string;
   razaoSocial: string;
   email: string;
+  telefoneId?: string | null;
   codigoPais?: string;
   ddd?: string;
   numero?: string;
@@ -311,6 +340,8 @@ export interface FuncionarioPerfilResponse {
   username: string;
   funcionarioAtivo?: boolean;
   nomeCompleto?: string;
+  primeiroNome?: string;
+  ultimoNome?: string;
   cpf?: string;
   dataNascimento?: string;
   matricula?: string;
@@ -370,6 +401,19 @@ export interface FeriasAfastamentosListagemResponse {
   size: number;
 }
 
+/** Tipo de afastamento (tipo_afastamento no schema). Ordem do seed: id 1..5. Backend recebe id e faz findByIdAndAtivoTrue. */
+export const TIPO_AFASTAMENTO = ["FERIAS", "LICENCA_MEDICA", "ATESTADO", "LICENCA_MATERNIDADE", "FALTA_JUSTIFICADA"] as const;
+export type TipoAfastamento = (typeof TIPO_AFASTAMENTO)[number];
+
+/** Opções para combobox: id na ordem do INSERT no schema (1=FERIAS, 2=LICENCA_MEDICA, 3=ATESTADO, 4=LICENCA_MATERNIDADE, 5=FALTA_JUSTIFICADA). */
+export const TIPO_AFASTAMENTO_OPCOES: { id: number; descricao: TipoAfastamento; label: string }[] = [
+  { id: 1, descricao: "FERIAS", label: "Férias" },
+  { id: 2, descricao: "LICENCA_MEDICA", label: "Licença médica" },
+  { id: 3, descricao: "ATESTADO", label: "Atestado" },
+  { id: 4, descricao: "LICENCA_MATERNIDADE", label: "Licença maternidade" },
+  { id: 5, descricao: "FALTA_JUSTIFICADA", label: "Falta justificada" },
+];
+
 /** POST /api/empresa/funcionario/:funcionarioId/afastamentos — Doc id 42 */
 export interface CriarAfastamentoRequest {
   tipoAfastamentoId: number;
@@ -378,6 +422,46 @@ export interface CriarAfastamentoRequest {
   observacao?: string | null;
   ativo?: boolean;
 }
+
+// --- Feriados (Doc ids 57–60) ---
+
+export interface FeriadoItemResponse {
+  id: string;
+  data: string; // yyyy-MM-dd
+  descricao: string;
+  tipoFeriadoId: number;
+  tipoFeriadoDescricao: string;
+  ativo: boolean;
+  createdAt: string;
+}
+
+/** GET /api/empresa/feriados — Doc id 57 */
+export interface FeriadoListagemPageResponse {
+  paginacao: Paginacao;
+  conteudo: FeriadoItemResponse[];
+}
+
+/** POST /api/empresa/feriados — Doc id 58. Empresa só pode ESTADUAL ou MUNICIPAL. */
+export interface CriarFeriadoRequest {
+  data: string; // yyyy-MM-dd
+  descricao: string;
+  tipoFeriadoId: number;
+  ativo?: boolean;
+}
+
+/** PUT /api/empresa/feriados/:feriadoId — Doc id 59 */
+export interface EditarFeriadoRequest {
+  data: string;
+  descricao: string;
+  tipoFeriadoId: number;
+  ativo?: boolean;
+}
+
+/** Tipo feriado: schema INSERT ordem NACIONAL, ESTADUAL, MUNICIPAL (id 1,2,3). Empresa só pode ESTADUAL e MUNICIPAL. */
+export const TIPO_FERIADO_OPCOES_EMPRESA: { id: number; descricao: string; label: string }[] = [
+  { id: 2, descricao: "ESTADUAL", label: "Estadual" },
+  { id: 3, descricao: "MUNICIPAL", label: "Municipal" },
+];
 
 // --- Geofences (Doc ids 46, 47) ---
 

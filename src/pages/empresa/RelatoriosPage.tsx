@@ -60,7 +60,7 @@ export default function RelatoriosPage() {
       toast({
         variant: "destructive",
         title: "Erro ao gerar relatório",
-        description: err.response?.data?.message ?? "Tente novamente.",
+        description: err.response?.data?.mensagem ?? "Tente novamente.",
       });
     },
   });
@@ -75,7 +75,7 @@ export default function RelatoriosPage() {
       toast({
         variant: "destructive",
         title: "Erro ao gerar relatório",
-        description: err.response?.data?.message ?? "Tente novamente.",
+        description: err.response?.data?.mensagem ?? "Tente novamente.",
       });
     },
   });

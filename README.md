@@ -42,7 +42,17 @@ npm run test         # Vitest (uma execução)
 npm run test:watch   # Vitest em watch
 ```
 
-A API é chamada em `http://localhost:8081` por padrão; altere em `src/lib/api.ts` se o backend estiver em outra URL.
+A API é chamada em `http://localhost:8081` por padrão; altere em `src/lib/api.ts` ou use a variável de ambiente `VITE_API_URL` se o backend estiver em outra URL.
+
+### Acessar o front da máquina host (de fora da VM)
+
+1. **Rede**: Garanta que as portas **8080** (front) e **8081** (API) da VM estejam acessíveis do host (rede em modo bridge ou port forwarding).
+2. **Na VM**, suba o front com a URL da API apontando para o IP/hostname da VM (para o browser do host conseguir chamar a API):
+   ```bash
+   VITE_API_URL=http://<IP_DA_VM>:8081 npm run dev
+   ```
+   Substitua `<IP_DA_VM>` pelo IP que o host usa para chegar na VM (ex.: `192.168.1.100`).
+3. **No host**, abra no navegador: `http://<IP_DA_VM>:8080`.
 
 ---
 

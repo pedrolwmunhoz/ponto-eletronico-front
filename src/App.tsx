@@ -22,6 +22,7 @@ import DashboardPage from "./pages/empresa/DashboardPage";
 import FuncionariosPage from "./pages/empresa/FuncionariosPage";
 import SolicitacoesPage from "./pages/empresa/SolicitacoesPage";
 import FeriasPage from "./pages/empresa/FeriasPage";
+import FeriadosPage from "./pages/empresa/FeriadosPage";
 import GeofencesPage from "./pages/empresa/GeofencesPage";
 import RelatoriosPage from "./pages/empresa/RelatoriosPage";
 import AuditoriaPage from "./pages/empresa/AuditoriaPage";
@@ -70,6 +71,7 @@ const App = () => (
               <Route path="banco-horas" element={<BancoHorasPage />} />
               <Route path="solicitacoes" element={<SolicitacoesPage />} />
               <Route path="ferias" element={<FeriasPage />} />
+              <Route path="feriados" element={<FeriadosPage />} />
               <Route path="geofences" element={<GeofencesPage />} />
               <Route path="relatorios" element={<RelatoriosPage />} />
               <Route path="auditoria" element={<AuditoriaPage />} />

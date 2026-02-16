@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, Fragment, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Clock, Trash2, Plus, Search, Pencil } from "lucide-react";
+import { Clock, Trash2, Plus, Search, Pencil, Eye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import {
   Select,
   SelectContent,
@@ -40,20 +48,22 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
-  listarFuncionarios,
+  listagemEspelhoPonto,
   listarPontoFuncionario,
   deletarRegistroPonto,
   criarRegistroPontoFuncionario,
   editarRegistroPonto,
 } from "@/lib/api-empresa";
 import type { PontoDiaResponse } from "@/types/empresa";
+import { ModalDetalharJornada } from "@/components/ponto/ModalDetalharJornada";
+import { ModalCriarRegistro } from "@/components/ponto/ModalCriarRegistro";
 
 const MESES = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
 ];
 
-/** Opções de tipo de justificativa (tipo_justificativa no backend) */
+/** Valores = doc/schema.sql tipo_justificativa (INSERT ~linha 182). Usado no modal editar registro. */
 const TIPO_JUSTIFICATIVA_OPCOES = [
   "ATRASO_TRANSPORTE",
   "EMERGENCIA_MEDICA",
@@ -65,11 +75,6 @@ const TIPO_JUSTIFICATIVA_OPCOES = [
   "REGISTRO_ERRADO",
   "OUTROS",
 ] as const;
-
-function formatTelefones(telefones: { codigoPais: string; ddd: string; numero: string }[]): string {
-  if (!telefones?.length) return "—";
-  return telefones.map((t) => `+${t.codigoPais} (${t.ddd}) ${t.numero}`).join(", ");
-}
 
 function PontoFuncionarioPage() {
   const { toast } = useToast();
@@ -84,13 +89,15 @@ function PontoFuncionarioPage() {
   const [editTarget, setEditTarget] = useState<{ funcionarioId: string; registroId: string; data: string; horario: string } | null>(null);
   const [editForm, setEditForm] = useState({ horario: "", justificativa: "", observacao: "" });
   const [createOpen, setCreateOpen] = useState(false);
-  const [createData, setCreateData] = useState({ data: "", horario: "", justificativa: "", observacao: "" });
+  const [createDataInicial, setCreateDataInicial] = useState<string | undefined>(undefined);
   const [nome, setNome] = useState("");
   const [nomeInput, setNomeInput] = useState("");
+  const [page, setPage] = useState(0);
+  const pageSize = 8;
 
-  const { data: funcionariosData } = useQuery({
-    queryKey: ["empresa", "funcionarios", 0, 500, nome],
-    queryFn: () => listarFuncionarios({ page: 0, pageSize: 500, nome: nome || undefined }),
+  const { data: funcionariosData, isError: listagemError, error: listagemErr } = useQuery({
+    queryKey: ["empresa", "espelho-ponto-listagem", page, pageSize, nome, ano, mes],
+    queryFn: () => listagemEspelhoPonto({ page, pageSize, nome: nome || undefined, ano, mes }),
   });
 
   const { data: pontoData, isLoading, isError, error } = useQuery({
@@ -111,7 +118,7 @@ function PontoFuncionarioPage() {
       toast({
         variant: "destructive",
         title: "Erro ao remover",
-        description: err.response?.data?.message ?? "Não foi possível remover.",
+        description: err.response?.data?.mensagem ?? "Não foi possível remover.",
       });
     },
   });
@@ -127,17 +134,31 @@ function PontoFuncionarioPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["empresa", "espelho-ponto"] });
       setCreateOpen(false);
-      setCreateData({ data: "", horario: "", justificativa: "", observacao: "" });
+      setCreateDataInicial(undefined);
       toast({ title: "Registro criado" });
     },
     onError: (err: any) => {
       toast({
         variant: "destructive",
         title: "Erro ao criar",
-        description: err.response?.data?.message ?? "Não foi possível criar o registro.",
+        description: err.response?.data?.mensagem ?? "Não foi possível criar o registro.",
       });
     },
   });
+
+  useEffect(() => {
+    if (listagemError && listagemErr) {
+      const msg = (listagemErr as { response?: { data?: { mensagem?: string } }; message?: string })?.response?.data?.mensagem ?? (listagemErr as Error)?.message ?? "Erro ao carregar.";
+      toast({ variant: "destructive", title: "Erro", description: msg });
+    }
+  }, [listagemError, listagemErr, toast]);
+
+  useEffect(() => {
+    if (isError && error) {
+      const msg = (error as { response?: { data?: { mensagem?: string } }; message?: string })?.response?.data?.mensagem ?? (error as Error)?.message ?? "Erro ao carregar ponto.";
+      toast({ variant: "destructive", title: "Erro", description: msg });
+    }
+  }, [isError, error, toast]);
 
   const editRegistroMutation = useMutation({
     mutationFn: ({
@@ -159,7 +180,7 @@ function PontoFuncionarioPage() {
       toast({
         variant: "destructive",
         title: "Erro ao editar",
-        description: err.response?.data?.message ?? "Não foi possível editar o registro.",
+        description: err.response?.data?.mensagem ?? "Não foi possível editar o registro.",
       });
     },
   });
@@ -178,28 +199,32 @@ function PontoFuncionarioPage() {
     setEspelhoModalOpen(true);
   };
 
-  const handleSearch = () => setNome(nomeInput.trim());
+  const handleSearch = () => {
+    setNome(nomeInput.trim());
+    setPage(0);
+  };
   const handleClearSearch = () => {
     setNomeInput("");
     setNome("");
+    setPage(0);
   };
 
   const funcionarios = funcionariosData?.conteudo ?? [];
+  const paginacao = funcionariosData?.paginacao;
+  const totalElementos = paginacao?.totalElementos ?? 0;
+  const totalPaginas =
+    paginacao != null ? Math.max(1, Math.ceil(totalElementos / pageSize)) : 1;
+  const paginaAtual = paginacao?.paginaAtual ?? 0;
   const selectedFuncionario = funcionarios.find((f) => f.usuarioId === selectedFuncionarioId);
-  const funcionarioNome = selectedFuncionario?.username ?? "—";
+  const funcionarioNome = selectedFuncionario?.nomeCompleto ?? selectedFuncionario?.username ?? "—";
 
-  const handleCriarRegistro = () => {
-    const horarioISO = `${createData.data}T${createData.horario}:00`;
-    if (!createData.justificativa.trim()) {
-      toast({ variant: "destructive", title: "Justificativa é obrigatória." });
-      return;
-    }
+  const handleCriarRegistroSubmit = (data: { horario: string; justificativa: string; observacao?: string | null }) => {
     createRegistroMutation.mutate({
       fid: selectedFuncionarioId,
       body: {
-        horario: horarioISO,
-        justificativa: createData.justificativa.trim(),
-        observacao: createData.observacao.trim() || null,
+        horario: data.horario,
+        justificativa: data.justificativa.trim(),
+        observacao: data.observacao?.trim() || null,
       },
     });
   };
@@ -238,6 +263,32 @@ function PontoFuncionarioPage() {
             Funcionários
           </CardTitle>
           <div className="flex flex-wrap items-center gap-2">
+            <Select
+              value={String(mes)}
+              onValueChange={(v) => setMes(parseInt(v, 10))}
+            >
+              <SelectTrigger className="w-[130px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MESES.map((m, i) => (
+                  <SelectItem key={m} value={String(i + 1)}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={String(ano)}
+              onValueChange={(v) => setAno(parseInt(v, 10))}
+            >
+              <SelectTrigger className="w-[90px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[ano, ano - 1, ano - 2, ano + 1].sort((a, b) => a - b).map((a) => (
+                  <SelectItem key={a} value={String(a)}>{a}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Input
               placeholder="Buscar por nome..."
               value={nomeInput}
@@ -257,45 +308,104 @@ function PontoFuncionarioPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {funcionarios.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4">Nenhum funcionário cadastrado.</p>
-          ) : (
+          <div className="h-[600px] overflow-y-auto rounded-md border">
             <Table>
-              <TableHeader>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nome</TableHead>
+                <TableHead>Horas esperadas</TableHead>
+                <TableHead>Horas trabalhadas</TableHead>
+                <TableHead>Horas trabalhadas feriado</TableHead>
+                <TableHead className="w-[100px] text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {funcionarios.length === 0 ? (
                 <TableRow>
-                  <TableHead>Usuário</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>E-mails</TableHead>
-                  <TableHead>Telefones</TableHead>
-                  <TableHead className="w-12 text-right"></TableHead>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    Nenhum funcionário cadastrado.
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {funcionarios.map((f) => (
+              ) : (
+                funcionarios.map((f) => (
                   <TableRow key={f.usuarioId}>
-                    <TableCell className="font-medium">{f.username}</TableCell>
-                    <TableCell>{f.tipo ?? "—"}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">
-                      {f.emails?.length ? f.emails.join(", ") : "—"}
-                    </TableCell>
-                    <TableCell className="max-w-[180px] truncate">
-                      {formatTelefones(f.telefones ?? [])}
-                    </TableCell>
-                    <TableCell className="p-2 text-right">
+                    <TableCell className="font-medium">{f.nomeCompleto ?? "—"}</TableCell>
+                    <TableCell className="tabular-nums">{f.totalHorasEsperadas ?? "—"}</TableCell>
+                    <TableCell className="tabular-nums">{f.totalHorasTrabalhadas ?? "—"}</TableCell>
+                    <TableCell className="tabular-nums">{f.totalHorasTrabalhadasFeriado ?? "—"}</TableCell>
+                    <TableCell className="text-right">
                       <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9 shrink-0 text-black hover:text-black hover:bg-stone-100"
+                        variant="outline"
+                        size="sm"
                         onClick={() => openEspelho(f.usuarioId)}
-                        aria-label="Abrir espelho de ponto"
+                        className="gap-1"
                       >
-                        <Clock className="h-5 w-5" />
+                        <Eye className="h-4 w-4" /> Detalhar
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                ))
+              )}
+            </TableBody>
+          </Table>
+          </div>
+          {paginacao != null && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t pt-4">
+              <p className="text-sm text-muted-foreground">
+                Página {paginaAtual + 1} de {totalPaginas}
+                {paginacao != null && ` • ${paginacao.totalElementos} registro(s)`}
+              </p>
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (paginaAtual > 0) setPage(paginaAtual - 1);
+                      }}
+                      className={paginaAtual === 0 ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                  {(() => {
+                    const maxBtns = 5;
+                    const start = Math.max(
+                      0,
+                      Math.min(paginaAtual - Math.floor(maxBtns / 2), totalPaginas - maxBtns)
+                    );
+                    const end = Math.min(totalPaginas - 1, start + maxBtns - 1);
+                    return Array.from({ length: end - start + 1 }, (_, i) => start + i).map(
+                      (p) => (
+                        <PaginationItem key={p}>
+                          <PaginationLink
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setPage(p);
+                            }}
+                            isActive={p === paginaAtual}
+                          >
+                            {p + 1}
+                          </PaginationLink>
+                        </PaginationItem>
+                      )
+                    );
+                  })()}
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (paginaAtual < totalPaginas - 1) setPage(paginaAtual + 1);
+                      }}
+                      className={
+                        paginaAtual >= totalPaginas - 1 ? "pointer-events-none opacity-50" : ""
+                      }
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -304,9 +414,9 @@ function PontoFuncionarioPage() {
       <Dialog open={espelhoModalOpen} onOpenChange={setEspelhoModalOpen}>
         <DialogContent className="max-w-5xl h-[85vh] max-h-[85vh] flex flex-col overflow-hidden bg-white border border-stone-200 p-6 rounded-lg">
           <div className="flex flex-col flex-1 min-h-0">
+            <h3 className="text-xl font-bold text-stone-800 mb-3 flex-shrink-0">Espelho de Ponto</h3>
             <div className="flex justify-between items-center mb-4 flex-shrink-0">
-              <h3 className="text-xl font-bold text-stone-800">Espelho de Ponto</h3>
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
                 <Select
                   value={String(mes)}
                   onValueChange={(v) => setMes(parseInt(v, 10))}
@@ -333,31 +443,38 @@ function PontoFuncionarioPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white gap-1" onClick={() => setCreateOpen(true)}>
-                  <Plus className="h-4 w-4" />
-                  Novo Registro
-                </Button>
               </div>
+              <Button
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white gap-1"
+                onClick={() => {
+                  setCreateDataInicial(undefined);
+                  setCreateOpen(true);
+                }}
+              >
+                <Plus className="h-4 w-4" />
+                Novo Registro
+              </Button>
             </div>
             <div className="flex-1 min-h-0 flex flex-col">
             {isLoading && (
               <div className="py-8 text-center text-sm text-stone-500">Carregando...</div>
             )}
-            {isError && (
-              <div className="py-8 text-center text-sm text-red-600">
-                {(error as Error)?.message ?? "Erro ao carregar ponto."}
-              </div>
-            )}
-            {!isLoading && !isError && pontoData && (() => {
-              const items = pontoData.items as PontoDiaResponse[];
+            {!isLoading && (pontoData || isError) && (() => {
+              const items = (isError ? [] : (pontoData ?? [])) as PontoDiaResponse[];
               const maxMarcacoes = items.length
                 ? Math.max(...items.map((d) => d.marcacoes?.length ?? 0), 1)
                 : 0;
-              const totalCols = 4 + maxMarcacoes + 1 + 1;
-              // Cabeçalhos na ordem da lista: Entrada 1, Saída 1, Entrada 2, Saída 2, ...
+              const totalCols = 4 + maxMarcacoes * 2 + 1 + 1;
               const getLabel = (index: number) => {
                 const n = Math.floor(index / 2) + 1;
-                return index % 2 === 0 ? "Entrada" + n : "Saída" + n;
+                return index % 2 === 0 ? "ENTRADA" + n : "SAÍDA" + n;
+              };
+              const fmtDiaHora = (h: string) => {
+                const d = new Date(h);
+                const dia = d.toLocaleDateString("pt-BR", { weekday: "short" }).replace(/\.$/g, "");
+                const hora = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+                return { dia, hora };
               };
               return (
               <div className="flex-1 min-h-0 overflow-auto border border-stone-200 rounded-lg">
@@ -365,14 +482,17 @@ function PontoFuncionarioPage() {
                   <thead className="bg-stone-50">
                     <tr>
                       <th className="px-4 py-2 text-left text-stone-700">Jornada</th>
-                      <th className="px-4 py-2 text-left text-stone-700">Data</th>
                       <th className="px-4 py-2 text-left text-stone-700">Dia</th>
+                      <th className="px-4 py-2 text-left text-stone-700">Data</th>
                       <th className="px-4 py-2 text-left text-stone-700">Status</th>
                       {Array.from({ length: maxMarcacoes }, (_, j) => (
-                        <th key={`col-${j}`} className="px-4 py-2 text-left text-stone-700">{getLabel(j)}</th>
+                        <Fragment key={`head-${j}`}>
+                          <th className="px-4 py-2 text-left text-stone-700 whitespace-nowrap">{getLabel(j)} Dia</th>
+                          <th className="px-4 py-2 text-left text-stone-700 whitespace-nowrap">{getLabel(j)} Hora</th>
+                        </Fragment>
                       ))}
                       <th className="px-4 py-2 text-left text-stone-700">Total</th>
-                      <th className="px-4 py-2 text-left text-stone-700">Ações</th>
+                      <th className="sticky right-0 z-10 px-4 py-2 text-left text-stone-700 bg-stone-50 border-l border-stone-200 shadow-[-4px_0_8px_rgba(0,0,0,0.04)]">Ações</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -383,24 +503,27 @@ function PontoFuncionarioPage() {
                         const [y, mo, d] = dia.data.split("-");
                         const dataFmt = `${d}/${mo}/${y}`;
                         const isNormal = (dia.status || "").toLowerCase().includes("normal") || !(dia.status || "").toLowerCase().includes("atraso");
-                        const fmt = (h: string) => new Date(h).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
                         return (
                           <tr key={`${dia.jornada}-${dia.data}`} className="border-b border-stone-200">
                             <td className="px-4 py-2">{dia.jornada ?? "—"}</td>
-                            <td className="px-4 py-2">{dataFmt}</td>
                             <td className="px-4 py-2">{dia.diaSemana ?? "—"}</td>
+                            <td className="px-4 py-2">{dataFmt}</td>
                             <td className="px-4 py-2">
                               <span className={`px-2 py-1 text-xs rounded ${isNormal ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>
                                 {dia.status ?? "Normal"}
                               </span>
                             </td>
-                            {Array.from({ length: maxMarcacoes }, (_, j) => (
-                              <td key={`cell-${j}`} className="px-4 py-2">
-                                {dia.marcacoes?.[j] ? fmt(dia.marcacoes[j].horario) : "—"}
-                              </td>
-                            ))}
+                            {Array.from({ length: maxMarcacoes }, (_, j) => {
+                              const f = dia.marcacoes?.[j] ? fmtDiaHora(dia.marcacoes[j].horario) : null;
+                              return (
+                                <Fragment key={`cell-${j}`}>
+                                  <td className="px-4 py-2">{f ? f.dia : "—"}</td>
+                                  <td className="px-4 py-2">{f ? f.hora : "—"}</td>
+                                </Fragment>
+                              );
+                            })}
                             <td className="px-4 py-2 font-medium">{dia.totalHoras ?? "—"}</td>
-                            <td className="px-4 py-2">
+                            <td className="sticky right-0 z-10 px-4 py-2 bg-white border-l border-stone-200 shadow-[-4px_0_8px_rgba(0,0,0,0.04)]">
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -424,117 +547,46 @@ function PontoFuncionarioPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal Editar dia — batidas do dia para deletar ou abrir Novo Registro */}
-      <Dialog open={!!editarDiaTarget} onOpenChange={(open) => !open && setEditarDiaTarget(null)}>
-        <DialogContent className="max-w-xl bg-white border border-stone-200 rounded-lg p-6">
-          <div className="flex justify-between items-center mb-2">
-            <DialogTitle className="text-xl font-bold text-stone-800">
-              Editar Registros — {editarDiaTarget
-                ? (() => {
-                    const [y, mo, d] = editarDiaTarget.data.split("-");
-                    return `${d}/${mo}/${y}`;
-                  })()
-                : ""} {editarDiaTarget?.diaSemana ?? ""}
-            </DialogTitle>
-            <Button
-              size="sm"
-              className="bg-blue-600 hover:bg-blue-700 text-white gap-1"
-              onClick={() => {
-                if (editarDiaTarget) {
-                  setCreateData((p) => ({ ...p, data: editarDiaTarget.data }));
-                  setEditarDiaTarget(null);
-                  setCreateOpen(true);
-                }
-              }}
-            >
-              <Plus className="h-4 w-4" />
-              Novo Registro
-            </Button>
-          </div>
-          <p className="text-sm text-stone-600 mb-4">
-            Batidas da jornada. Edite ou exclua um registro se necessário.
-          </p>
-          <div className="space-y-3">
-            {editarDiaTarget?.marcacoes?.length ? (
-              editarDiaTarget.marcacoes.map((m) => {
-                const d = new Date(m.horario);
-                const timeStr = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-                return (
-                  <div
-                    key={m.registroId}
-                    className="flex items-center justify-between py-2 px-3 border border-stone-200 rounded-lg"
-                  >
-                    <span className="font-medium text-stone-800 flex items-center gap-2">
-                      {d.toLocaleTimeString("pt-BR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                      })}
-                      {m.tipo && (
-                        <span
-                          className={`px-2 py-0.5 text-xs font-medium rounded ${
-                            m.tipo === "ENTRADA" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {m.tipo === "ENTRADA" ? "Entrada" : "Saída"}
-                        </span>
-                      )}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-stone-600 hover:text-stone-800 hover:bg-stone-100"
-                        onClick={() => {
-                          setEditTarget({
-                            funcionarioId: selectedFuncionarioId,
-                            registroId: m.registroId,
-                            data: m.horario.slice(0, 10),
-                            horario: m.horario,
-                          });
-                          setEditForm({
-                            horario: timeStr,
-                            justificativa: "",
-                            observacao: "",
-                          });
-                          setEditarDiaTarget(null);
-                        }}
-                      >
-                        <Pencil className="h-4 w-4 mr-1" />
-                        Editar
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:text-red-800 hover:bg-red-50"
-                        onClick={() => {
-                          setDeleteTarget({
-                            funcionarioId: selectedFuncionarioId,
-                            registroId: m.registroId,
-                            data: m.horario.slice(0, 10),
-                            horario: m.horario,
-                          });
-                          setEditarDiaTarget(null);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        Excluir
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <p className="text-sm text-stone-500 py-2">Nenhuma batida neste dia.</p>
-            )}
-          </div>
-          <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setEditarDiaTarget(null)}>
-              Fechar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ModalDetalharJornada
+        open={!!editarDiaTarget}
+        onOpenChange={(open) => !open && setEditarDiaTarget(null)}
+        jornada={editarDiaTarget}
+        modo="empresa"
+        onRemover={(registroId) => {
+          const m = editarDiaTarget?.marcacoes?.find((x) => x.registroId === registroId);
+          if (m) {
+            setDeleteTarget({
+              funcionarioId: selectedFuncionarioId,
+              registroId,
+              data: m.horario.slice(0, 10),
+              horario: m.horario,
+            });
+            setEditarDiaTarget(null);
+          }
+        }}
+        onAdicionarRegistro={() => {
+          if (editarDiaTarget) {
+            setCreateDataInicial(editarDiaTarget.data);
+            setEditarDiaTarget(null);
+            setCreateOpen(true);
+          }
+        }}
+        onEditar={(registroId) => {
+          const m = editarDiaTarget?.marcacoes?.find((x) => x.registroId === registroId);
+          if (m) {
+            const d = new Date(m.horario);
+            const timeStr = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+            setEditTarget({
+              funcionarioId: selectedFuncionarioId,
+              registroId: m.registroId,
+              data: m.horario.slice(0, 10),
+              horario: m.horario,
+            });
+            setEditForm({ horario: timeStr, justificativa: "", observacao: "" });
+            setEditarDiaTarget(null);
+          }
+        }}
+      />
 
       <Dialog open={!!editTarget} onOpenChange={(open) => !open && setEditTarget(null)}>
         <DialogContent>
@@ -558,13 +610,13 @@ function PontoFuncionarioPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Justificativa *</Label>
+              <Label>Motivo *</Label>
               <Select
                 value={editForm.justificativa || ""}
                 onValueChange={(v) => setEditForm((p) => ({ ...p, justificativa: v }))}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecione a justificativa" />
+                  <SelectValue placeholder="Selecione o motivo" />
                 </SelectTrigger>
                 <SelectContent>
                   {TIPO_JUSTIFICATIVA_OPCOES.map((valor) => (
@@ -597,70 +649,15 @@ function PontoFuncionarioPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Criar registro de ponto</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">Funcionário: {funcionarioNome}</p>
-          <div className="grid gap-4 py-2">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-2">
-                <Label>Data</Label>
-                <Input
-                  type="date"
-                  value={createData.data}
-                  onChange={(e) => setCreateData((p) => ({ ...p, data: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Horário (HH:MM)</Label>
-                <Input
-                  type="time"
-                  value={createData.horario}
-                  onChange={(e) => setCreateData((p) => ({ ...p, horario: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Justificativa *</Label>
-              <Select
-                value={createData.justificativa || ""}
-                onValueChange={(v) => setCreateData((p) => ({ ...p, justificativa: v }))}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecione a justificativa" />
-                </SelectTrigger>
-                <SelectContent>
-                  {TIPO_JUSTIFICATIVA_OPCOES.map((valor) => (
-                    <SelectItem key={valor} value={valor}>
-                      {valor.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Observação (opcional)</Label>
-              <Textarea
-                value={createData.observacao}
-                onChange={(e) => setCreateData((p) => ({ ...p, observacao: e.target.value }))}
-                placeholder="Observações"
-                rows={2}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
-            <Button
-              disabled={!createData.data || !createData.horario || !createData.justificativa.trim() || createRegistroMutation.isPending}
-              onClick={handleCriarRegistro}
-            >
-              {createRegistroMutation.isPending ? "Criando..." : "Criar"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ModalCriarRegistro
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onSubmit={handleCriarRegistroSubmit}
+        isLoading={createRegistroMutation.isPending}
+        variant="empresa"
+        dataInicial={createDataInicial}
+        subtitulo={`Funcionário: ${funcionarioNome}`}
+      />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>

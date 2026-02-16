@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Shield } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,10 +18,11 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { useToast } from "@/hooks/use-toast";
 import { listarAuditoria } from "@/lib/api-empresa";
 import type { AuditoriaItemResponse } from "@/types/empresa";
 
-function formatInstant(s: string) {
+function formatDateTime(s: string) {
   if (!s) return "—";
   try {
     return new Date(s).toLocaleString("pt-BR");
@@ -31,6 +32,7 @@ function formatInstant(s: string) {
 }
 
 export default function AuditoriaPage() {
+  const { toast } = useToast();
   const [page, setPage] = useState(0);
   const [size] = useState(10);
 
@@ -38,6 +40,13 @@ export default function AuditoriaPage() {
     queryKey: ["empresa", "auditoria", page, size],
     queryFn: () => listarAuditoria({ page, size }),
   });
+
+  useEffect(() => {
+    if (isError && error) {
+      const msg = (error as { response?: { data?: { mensagem?: string } }; message?: string })?.response?.data?.mensagem ?? (error as Error)?.message ?? "Erro ao carregar.";
+      toast({ variant: "destructive", title: "Erro", description: msg });
+    }
+  }, [isError, error, toast]);
 
   const totalPaginas = data ? Math.max(1, Math.ceil(data.total / size)) : 1;
 
@@ -61,14 +70,10 @@ export default function AuditoriaPage() {
           {isLoading && (
             <div className="py-8 text-center text-sm text-muted-foreground">Carregando...</div>
           )}
-          {isError && (
-            <div className="py-8 text-center text-sm text-destructive">
-              {(error as Error)?.message ?? "Erro ao carregar."}
-            </div>
-          )}
-          {!isLoading && !isError && data && (
+          {!isLoading && (data || isError) && (
             <>
-              <Table>
+              <div className="h-[600px] overflow-y-auto rounded-md border">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Ação</TableHead>
@@ -79,19 +84,19 @@ export default function AuditoriaPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.items.length === 0 ? (
+                  {(data?.items ?? []).length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                         Nenhum registro.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    data.items.map((item: AuditoriaItemResponse, idx) => (
+                    (data?.items ?? []).map((item: AuditoriaItemResponse, idx) => (
                       <TableRow key={idx}>
                         <TableCell className="font-medium">{item.acao ?? "—"}</TableCell>
                         <TableCell className="max-w-[200px] truncate">{item.descricao ?? "—"}</TableCell>
                         <TableCell className="text-muted-foreground text-xs">
-                          {formatInstant(item.data)}
+                          {formatDateTime(item.data)}
                         </TableCell>
                         <TableCell>{item.nomeUsuario ?? "—"}</TableCell>
                         <TableCell>{item.sucesso ? "Sim" : "Não"}</TableCell>
@@ -100,9 +105,10 @@ export default function AuditoriaPage() {
                   )}
                 </TableBody>
               </Table>
+              </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t pt-4">
                   <p className="text-sm text-muted-foreground">
-                    Página {page + 1} de {totalPaginas} • {data.total} registro(s)
+                    Página {page + 1} de {totalPaginas} • {data?.total ?? 0} registro(s)
                   </p>
                   <Pagination>
                     <PaginationContent>

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/landing/Navbar";
 import { Button } from "@/components/ui/button";
@@ -7,27 +7,56 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Clock, Eye, EyeOff } from "lucide-react";
+import { FieldWithExpected } from "@/components/ui/field-with-expected";
+import { CheckCircle2, Clock, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useValidation } from "@/hooks/useValidation";
+import { maskCpfInput, maskCnpjInput } from "@/lib/format";
+import { validateCredencialByTipo, validateSenha, getFieldExpected } from "@/lib/validations";
 import type { TipoCredencial } from "@/types/auth";
 
 export default function LoginPage() {
   const { login, isLoading } = useAuth();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [valor, setValor] = useState("");
   const [tipoCredencial, setTipoCredencial] = useState<TipoCredencial>("EMAIL");
   const [senha, setSenha] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const { getError, getTouched, handleBlur, handleChange, validateAll } = useValidation();
+
+  const validateValor = (v: string) => validateCredencialByTipo(v, tipoCredencial, true);
+
+  useEffect(() => {
+    if (searchParams.get("unauthorized") === "1") {
+      toast({
+        variant: "destructive",
+        title: "Não autorizado",
+        description: "Seu usuário não tem permissão para acessar esta área. Entre com a conta correta.",
+      });
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams, toast]);
+
+  useEffect(() => {
+    if (tipoCredencial === "CPF" && valor) setValor((v) => maskCpfInput(v));
+    if (tipoCredencial === "CNPJ" && valor) setValor((v) => maskCnpjInput(v));
+  }, [tipoCredencial]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const ok = validateAll([
+      ["valor", valor, validateValor],
+      ["senha", senha, (v) => validateSenha(v, true)],
+    ]);
+    if (!ok) return;
     try {
       await login({ valor, tipoCredencial, senha });
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Erro ao entrar",
-        description: error.response?.data?.message || "Credenciais inválidas. Tente novamente.",
+        description: error.response?.data?.mensagem || "Credenciais inválidas. Tente novamente.",
       });
     }
   };
@@ -61,7 +90,7 @@ export default function LoginPage() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="tipoCredencial">Tipo de credencial</Label>
+                <Label htmlFor="tipoCredencial" required>Tipo de credencial</Label>
                 <Select
                   value={tipoCredencial}
                   onValueChange={(v) => setTipoCredencial(v as TipoCredencial)}
@@ -79,20 +108,38 @@ export default function LoginPage() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="valor">Credencial</Label>
+              <FieldWithExpected
+                name="valor"
+                label="Credencial"
+                required
+                expected={getFieldExpected(tipoCredencial.toLowerCase())}
+                error={getError("valor")}
+                showValid={getTouched("valor") || valor.trim().length > 0}
+              >
                 <Input
                   id="valor"
                   placeholder={placeholders[tipoCredencial]}
                   value={valor}
-                  onChange={(e) => setValor(e.target.value)}
-                  required
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const next =
+                      tipoCredencial === "CPF"
+                        ? maskCpfInput(raw)
+                        : tipoCredencial === "CNPJ"
+                          ? maskCnpjInput(raw)
+                          : raw;
+                    setValor(next);
+                    handleChange("valor", next, validateValor);
+                  }}
+                  onBlur={() => handleBlur("valor", valor, validateValor)}
+                  aria-invalid={!!getError("valor")}
+                  className="mt-1"
                 />
-              </div>
+              </FieldWithExpected>
 
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="senha">Senha</Label>
+                  <Label htmlFor="senha" required>Senha</Label>
                   <Link
                     to="/recuperar-senha"
                     className="text-xs text-primary hover:underline"
@@ -106,9 +153,13 @@ export default function LoginPage() {
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     value={senha}
-                    onChange={(e) => setSenha(e.target.value)}
-                    required
-                    minLength={6}
+                    onChange={(e) => {
+                      setSenha(e.target.value);
+                      handleChange("senha", e.target.value, (v) => validateSenha(v, true));
+                    }}
+                    onBlur={() => handleBlur("senha", senha, (v) => validateSenha(v, true))}
+                    aria-invalid={!!getError("senha")}
+                    className="mt-1"
                   />
                   <Button
                     type="button"
@@ -120,6 +171,14 @@ export default function LoginPage() {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
+                <p className="text-xs text-muted-foreground mt-1">Esperado: {getFieldExpected("senha")}</p>
+                {getError("senha") && <p role="alert" className="text-sm text-destructive">{getError("senha")}</p>}
+                {!getError("senha") && (getTouched("senha") || senha.length > 0) && (
+                  <p className="text-sm text-green-600 dark:text-green-500 flex items-center gap-1">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
+                    Válido
+                  </p>
+                )}
               </div>
 
               <Button type="submit" className="w-full" disabled={isLoading}>

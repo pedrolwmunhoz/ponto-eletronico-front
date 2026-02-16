@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Users, Search, Plus, Trash2, MoreVertical, Pencil, Key, Mail, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -56,6 +56,19 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { useValidation } from "@/hooks/useValidation";
+import { formatCpf, maskCpfInput } from "@/lib/format";
+import {
+  validateUsername,
+  validateEmail,
+  validateCpf,
+  validateNomeCompleto,
+  validatePrimeiroNome,
+  validateUltimoNome,
+  validateSenha,
+  validateCargo,
+} from "@/lib/validations";
+import { FieldExpectedStatus } from "@/components/ui/field-with-expected";
 import {
   listarFuncionarios,
   listarGeofences,
@@ -84,6 +97,8 @@ function formatTelefones(telefones: { codigoPais: string; ddd: string; numero: s
 const emptyForm = (): FuncionarioCreateRequest => ({
   username: "",
   nomeCompleto: "",
+  primeiroNome: "",
+  ultimoNome: "",
   cpf: "",
   dataNascimento: null,
   email: "",
@@ -93,6 +108,17 @@ const emptyForm = (): FuncionarioCreateRequest => ({
   jornadaFuncionarioConfig: null,
   geofenceIds: null,
 });
+
+/** Auto-completa primeiro, último e username a partir do nome completo (só no front). */
+function fillFromNomeCompleto(nomeCompleto: string): { primeiroNome: string; ultimoNome: string; username: string } {
+  const t = nomeCompleto.trim();
+  if (!t) return { primeiroNome: "", ultimoNome: "", username: "" };
+  const parts = t.split(/\s+/).filter(Boolean);
+  const primeiro = parts[0] ?? "";
+  const ultimo = parts.length > 1 ? (parts[parts.length - 1] ?? "") : primeiro;
+  const username = [primeiro, ultimo].filter(Boolean).map((s) => s.toLowerCase()).join(".");
+  return { primeiroNome: primeiro, ultimoNome: ultimo, username };
+}
 
 /** Valores iniciais para aba Contrato (opcional). */
 const emptyContrato = (): ContratoFuncionarioRequest => ({
@@ -126,8 +152,9 @@ import { durationToHHmm, hhmmToDuration } from "@/lib/duration";
 export default function FuncionariosPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { getError, getTouched, handleBlur, handleChange, validateAll } = useValidation();
   const [page, setPage] = useState(0);
-  const [pageSize] = useState(10);
+  const [pageSize] = useState(8);
   const [nome, setNome] = useState("");
   const [nomeInput, setNomeInput] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<FuncionarioListagemResponse | null>(null);
@@ -144,6 +171,13 @@ export default function FuncionariosPage() {
     queryKey: ["empresa", "funcionarios", page, pageSize, nome],
     queryFn: () => listarFuncionarios({ page, pageSize, nome: nome || undefined }),
   });
+
+  useEffect(() => {
+    if (isError && error) {
+      const msg = (error as { response?: { data?: { mensagem?: string } }; message?: string })?.response?.data?.mensagem ?? (error as Error)?.message ?? "Erro ao carregar funcionários.";
+      toast({ variant: "destructive", title: "Erro", description: msg });
+    }
+  }, [isError, error, toast]);
 
   const { data: geofencesData } = useQuery({
     queryKey: ["empresa", "geofences", "all"],
@@ -163,7 +197,7 @@ export default function FuncionariosPage() {
       toast({
         variant: "destructive",
         title: "Erro ao remover",
-        description: err.response?.data?.message ?? "Não foi possível remover o funcionário.",
+        description: err.response?.data?.mensagem ?? "Não foi possível remover o funcionário.",
       });
     },
   });
@@ -180,7 +214,7 @@ export default function FuncionariosPage() {
       toast({
         variant: "destructive",
         title: "Erro ao criar",
-        description: err.response?.data?.message ?? "Não foi possível criar o funcionário.",
+        description: err.response?.data?.mensagem ?? "Não foi possível criar o funcionário.",
       });
     },
   });
@@ -199,7 +233,7 @@ export default function FuncionariosPage() {
       toast({
         variant: "destructive",
         title: "Erro ao atualizar",
-        description: err.response?.data?.message ?? "Não foi possível atualizar.",
+        description: err.response?.data?.mensagem ?? "Não foi possível atualizar.",
       });
     },
   });
@@ -217,7 +251,7 @@ export default function FuncionariosPage() {
       toast({
         variant: "destructive",
         title: "Erro ao resetar senha",
-        description: err.response?.data?.message ?? "Não foi possível alterar a senha.",
+        description: err.response?.data?.mensagem ?? "Não foi possível alterar a senha.",
       });
     },
   });
@@ -235,7 +269,7 @@ export default function FuncionariosPage() {
       toast({
         variant: "destructive",
         title: "Erro ao resetar e-mail",
-        description: err.response?.data?.message ?? "Não foi possível alterar o e-mail.",
+        description: err.response?.data?.mensagem ?? "Não foi possível alterar o e-mail.",
       });
     },
   });
@@ -250,7 +284,7 @@ export default function FuncionariosPage() {
       toast({
         variant: "destructive",
         title: "Erro ao desbloquear",
-        description: err.response?.data?.message ?? "Não foi possível desbloquear.",
+        description: err.response?.data?.mensagem ?? "Não foi possível desbloquear.",
       });
     },
   });
@@ -283,7 +317,9 @@ export default function FuncionariosPage() {
       setForm({
         username: p.username ?? "",
         nomeCompleto: p.nomeCompleto ?? "",
-        cpf: p.cpf ?? "",
+        primeiroNome: p.primeiroNome ?? "",
+        ultimoNome: p.ultimoNome ?? "",
+        cpf: p.cpf ? (formatCpf(p.cpf) || p.cpf) : "",
         dataNascimento: p.dataNascimento ?? null,
         email: p.email ?? "",
         senha: "",
@@ -308,7 +344,7 @@ export default function FuncionariosPage() {
       toast({
         variant: "destructive",
         title: "Erro ao carregar perfil",
-        description: (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Não foi possível carregar os dados do funcionário.",
+        description: (err as { response?: { data?: { mensagem?: string } } })?.response?.data?.mensagem ?? "Não foi possível carregar os dados do funcionário.",
       });
       setFormOpen(null);
     }
@@ -354,13 +390,25 @@ export default function FuncionariosPage() {
   };
 
   const handleSubmitCreate = () => {
-    if (!form.username?.trim() || !form.nomeCompleto?.trim() || !form.cpf?.trim() || !form.email?.trim() || !form.senha?.trim()) {
-      toast({ variant: "destructive", title: "Preencha usuário, nome, CPF, e-mail e senha." });
+    const ok = validateAll([
+      ["nomeCompleto", form.nomeCompleto ?? "", (v) => validateNomeCompleto(v, true)],
+      ["primeiroNome", form.primeiroNome ?? "", (v) => validatePrimeiroNome(v, true)],
+      ["ultimoNome", form.ultimoNome ?? "", (v) => validateUltimoNome(v, true)],
+      ["username", form.username ?? "", (v) => validateUsername(v, true)],
+      ["cpf", form.cpf ?? "", (v) => validateCpf(v, true)],
+      ["email", form.email ?? "", (v) => validateEmail(v, true)],
+      ["senha", form.senha ?? "", (v) => validateSenha(v, true)],
+      ["cargo", form.contratoFuncionario?.cargo ?? "", (v) => validateCargo(v, true)],
+    ]);
+    if (!ok) {
+      toast({ variant: "destructive", title: "Corrija os erros antes de salvar." });
       return;
     }
     const body: FuncionarioCreateRequest = {
       username: form.username.trim(),
       nomeCompleto: form.nomeCompleto.trim(),
+      primeiroNome: form.primeiroNome.trim(),
+      ultimoNome: form.ultimoNome.trim(),
       cpf: form.cpf.trim(),
       dataNascimento: form.dataNascimento ?? null,
       email: form.email.trim(),
@@ -375,13 +423,23 @@ export default function FuncionariosPage() {
 
   const handleSubmitEdit = () => {
     if (!editTarget) return;
-    if (!form.username?.trim() || !form.nomeCompleto?.trim() || !form.cpf?.trim() || !form.email?.trim()) {
-      toast({ variant: "destructive", title: "Preencha usuário, nome, CPF e e-mail." });
+    const ok = validateAll([
+      ["nomeCompleto", form.nomeCompleto ?? "", (v) => validateNomeCompleto(v, true)],
+      ["primeiroNome", form.primeiroNome ?? "", (v) => validatePrimeiroNome(v, true)],
+      ["ultimoNome", form.ultimoNome ?? "", (v) => validateUltimoNome(v, true)],
+      ["username", form.username ?? "", (v) => validateUsername(v, true)],
+      ["cpf", form.cpf ?? "", (v) => validateCpf(v, true)],
+      ["email", form.email ?? "", (v) => validateEmail(v, true)],
+    ]);
+    if (!ok) {
+      toast({ variant: "destructive", title: "Corrija os erros antes de salvar." });
       return;
     }
     const body: FuncionarioUpdateRequest = {
       username: form.username.trim(),
       nomeCompleto: form.nomeCompleto.trim(),
+      primeiroNome: form.primeiroNome.trim(),
+      ultimoNome: form.ultimoNome.trim(),
       cpf: form.cpf.trim(),
       dataNascimento: form.dataNascimento ?? null,
       email: form.email.trim(),
@@ -441,35 +499,33 @@ export default function FuncionariosPage() {
           {isLoading && (
             <div className="py-8 text-center text-sm text-muted-foreground">Carregando...</div>
           )}
-          {isError && (
-            <div className="py-8 text-center text-sm text-destructive">
-              {(error as Error)?.message ?? "Erro ao carregar funcionários."}
-            </div>
-          )}
-          {!isLoading && !isError && data && (
+          {!isLoading && (data || isError) && (
             <>
-              <Table>
+              <div className="h-[600px] overflow-y-auto rounded-md border">
+                <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Nome</TableHead>
                     <TableHead>Usuário</TableHead>
-                    <TableHead>Tipo</TableHead>
                     <TableHead>E-mails</TableHead>
                     <TableHead>Telefones</TableHead>
                     <TableHead className="w-[70px] text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.conteudo.length === 0 ? (
+                  {(data?.conteudo ?? []).length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                         Nenhum funcionário encontrado.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    data.conteudo.map((f) => (
+                    (data?.conteudo ?? []).map((f) => (
                       <TableRow key={f.usuarioId}>
-                        <TableCell className="font-medium">{f.username}</TableCell>
-                        <TableCell>{f.tipo ?? "—"}</TableCell>
+                        <TableCell className="font-medium">
+                          {[f.primeiroNome, f.ultimoNome].filter(Boolean).join(" ") || "—"}
+                        </TableCell>
+                        <TableCell>{f.username ?? "—"}</TableCell>
                         <TableCell className="max-w-[200px] truncate">
                           {f.emails?.length ? f.emails.join(", ") : "—"}
                         </TableCell>
@@ -521,6 +577,7 @@ export default function FuncionariosPage() {
                   )}
                 </TableBody>
               </Table>
+              </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t pt-4">
                 <p className="text-sm text-muted-foreground">
                   Página {paginaAtual + 1} de {totalPaginas}
@@ -584,12 +641,12 @@ export default function FuncionariosPage() {
 
       {/* Dialog Criar / Editar funcionário */}
       <Dialog open={formOpen !== null} onOpenChange={(open) => !open && setFormOpen(null)}>
-        <DialogContent className="max-w-4xl w-[95vw] max-h-[92vh] min-h-[70vh] flex flex-col overflow-hidden px-8 py-6">
+        <DialogContent className="max-w-3xl w-[95vw] max-h-[92vh] min-h-[70vh] flex flex-col overflow-hidden px-8 py-6">
           <DialogHeader className="flex-shrink-0 pb-2">
             <DialogTitle>{formOpen === "create" ? "Novo funcionário" : "Editar funcionário"}</DialogTitle>
           </DialogHeader>
           <Tabs defaultValue="dados" className="w-full flex flex-col flex-1 min-h-0">
-            <TabsList className="grid w-full grid-cols-5 flex-shrink-0">
+            <TabsList className="flex flex-wrap gap-1 flex-shrink-0 mb-6">
               <TabsTrigger value="dados" className="gap-1.5">
                 Dados <Badge className="text-[10px] px-1.5 py-0 font-normal border-0 bg-blue-100 text-blue-800">Obrigatório</Badge>
               </TabsTrigger>
@@ -607,33 +664,85 @@ export default function FuncionariosPage() {
               </TabsTrigger>
             </TabsList>
             <TabsContent value="dados" className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label required>Nome completo</Label>
+                <Input
+                  value={form.nomeCompleto}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const filled = fillFromNomeCompleto(v);
+                    setForm((prev) => ({
+                      ...prev,
+                      nomeCompleto: v,
+                      primeiroNome: filled.primeiroNome,
+                      ultimoNome: filled.ultimoNome,
+                      username: filled.username,
+                    }));
+                    handleChange("nomeCompleto", v, (x) => validateNomeCompleto(x, true));
+                  }}
+                  onBlur={() => handleBlur("nomeCompleto", form.nomeCompleto ?? "", (x) => validateNomeCompleto(x, true))}
+                  placeholder="Ex: João Pedro da Silva"
+                />
+                <FieldExpectedStatus fieldKey="nomeCompleto" value={form.nomeCompleto ?? ""} error={getError("nomeCompleto")} touched={getTouched("nomeCompleto")} />
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Usuário (login)</Label>
+                  <Label required>Primeiro nome</Label>
                   <Input
-                    value={form.username}
-                    onChange={(e) => setForm((prev) => ({ ...prev, username: e.target.value }))}
-                    placeholder="usuario"
+                    value={form.primeiroNome}
+                    onChange={(e) => {
+                      setForm((prev) => ({ ...prev, primeiroNome: e.target.value }));
+                      handleChange("primeiroNome", e.target.value, (x) => validatePrimeiroNome(x, true));
+                    }}
+                    onBlur={() => handleBlur("primeiroNome", form.primeiroNome ?? "", (x) => validatePrimeiroNome(x, true))}
+                    placeholder="Ex: João"
                   />
+                  <FieldExpectedStatus fieldKey="primeiroNome" value={form.primeiroNome ?? ""} error={getError("primeiroNome")} touched={getTouched("primeiroNome")} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Nome completo</Label>
+                  <Label required>Sobrenome</Label>
                   <Input
-                    value={form.nomeCompleto}
-                    onChange={(e) => setForm((prev) => ({ ...prev, nomeCompleto: e.target.value }))}
-                    placeholder="Nome completo"
+                    value={form.ultimoNome}
+                    onChange={(e) => {
+                      setForm((prev) => ({ ...prev, ultimoNome: e.target.value }));
+                      handleChange("ultimoNome", e.target.value, (x) => validateUltimoNome(x, true));
+                    }}
+                    onBlur={() => handleBlur("ultimoNome", form.ultimoNome ?? "", (x) => validateUltimoNome(x, true))}
+                    placeholder="Ex: Silva"
                   />
+                  <FieldExpectedStatus fieldKey="ultimoNome" value={form.ultimoNome ?? ""} error={getError("ultimoNome")} touched={getTouched("ultimoNome")} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
+                  <Label required>Usuário (login)</Label>
+                  <Input
+                    value={form.username}
+                    onChange={(e) => {
+                      setForm((prev) => ({ ...prev, username: e.target.value }));
+                      handleChange("username", e.target.value, (v) => validateUsername(v, true));
+                    }}
+                    onBlur={() => handleBlur("username", form.username ?? "", (v) => validateUsername(v, true))}
+                    placeholder="primeiro.ultimonome"
+                  />
+                  <FieldExpectedStatus fieldKey="username" value={form.username ?? ""} error={getError("username")} touched={getTouched("username")} />
+                </div>
+                <div className="space-y-2">
                   <Label>CPF</Label>
                   <Input
                     value={form.cpf}
-                    onChange={(e) => setForm((prev) => ({ ...prev, cpf: e.target.value }))}
+                    onChange={(e) => {
+                      const next = maskCpfInput(e.target.value);
+                      setForm((prev) => ({ ...prev, cpf: next }));
+                      handleChange("cpf", next, (v) => validateCpf(v, true));
+                    }}
+                    onBlur={() => handleBlur("cpf", form.cpf ?? "", (v) => validateCpf(v, true))}
                     placeholder="000.000.000-00"
                   />
+                  <FieldExpectedStatus fieldKey="cpf" value={form.cpf ?? ""} error={getError("cpf")} touched={getTouched("cpf")} />
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Data nascimento (opcional)</Label>
                   <Input
@@ -646,13 +755,18 @@ export default function FuncionariosPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>E-mail</Label>
+                <Label required>E-mail</Label>
                 <Input
                   type="email"
                   value={form.email}
-                  onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
+                  onChange={(e) => {
+                    setForm((prev) => ({ ...prev, email: e.target.value }));
+                    handleChange("email", e.target.value, (v) => validateEmail(v, true));
+                  }}
+                  onBlur={() => handleBlur("email", form.email ?? "", (v) => validateEmail(v, true))}
                   placeholder="email@empresa.com"
                 />
+                <FieldExpectedStatus fieldKey="email" value={form.email ?? ""} error={getError("email")} touched={getTouched("email")} />
               </div>
               {formOpen === "create" && (
                 <div className="space-y-2">
@@ -660,9 +774,14 @@ export default function FuncionariosPage() {
                   <Input
                     type="password"
                     value={form.senha}
-                    onChange={(e) => setForm((prev) => ({ ...prev, senha: e.target.value }))}
+                    onChange={(e) => {
+                      setForm((prev) => ({ ...prev, senha: e.target.value }));
+                      handleChange("senha", e.target.value, (v) => validateSenha(v, true));
+                    }}
+                    onBlur={() => handleBlur("senha", form.senha ?? "", (v) => validateSenha(v, true))}
                     placeholder="••••••••"
                   />
+                  <FieldExpectedStatus fieldKey="senha" value={form.senha ?? ""} error={getError("senha")} touched={getTouched("senha")} />
                 </div>
               )}
             </TabsContent>
@@ -670,7 +789,7 @@ export default function FuncionariosPage() {
               <p className="text-sm text-muted-foreground">Opcional. Preencha para cadastrar telefone.</p>
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-2">
-                  <Label>Cód. país</Label>
+                  <Label required>Cód. país</Label>
                   <Input
                     value={form.usuarioTelefone?.codigoPais ?? "55"}
                     onChange={(e) =>
@@ -686,7 +805,7 @@ export default function FuncionariosPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>DDD</Label>
+                  <Label required>DDD</Label>
                   <Input
                     value={form.usuarioTelefone?.ddd ?? ""}
                     onChange={(e) =>
@@ -702,7 +821,7 @@ export default function FuncionariosPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Número</Label>
+                  <Label required>Número</Label>
                   <Input
                     value={form.usuarioTelefone?.numero ?? ""}
                     onChange={(e) =>
@@ -757,7 +876,7 @@ export default function FuncionariosPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Cargo</Label>
+                      <Label required>Cargo</Label>
                       <Input
                         value={form.contratoFuncionario.cargo}
                         onChange={(e) =>
@@ -789,7 +908,7 @@ export default function FuncionariosPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Tipo de contrato</Label>
+                      <Label required>Tipo de contrato</Label>
                       <Select
                         value={form.contratoFuncionario.tipoContratoId ? String(form.contratoFuncionario.tipoContratoId) : ""}
                         onValueChange={(v) => {
@@ -832,7 +951,7 @@ export default function FuncionariosPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Data admissão</Label>
+                      <Label required>Data admissão</Label>
                       <Input
                         type="date"
                         value={form.contratoFuncionario.dataAdmissao}
@@ -911,8 +1030,8 @@ export default function FuncionariosPage() {
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Tipo de escala jornada</Label>
-                      <Select
+<Label required>Tipo de escala jornada</Label>
+                        <Select
                         value={form.jornadaFuncionarioConfig.tipoEscalaJornadaId ? String(form.jornadaFuncionarioConfig.tipoEscalaJornadaId) : ""}
                         onValueChange={(v) => {
                           const id = v ? parseInt(v, 10) : 0;
@@ -954,7 +1073,7 @@ export default function FuncionariosPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Carga semanal</Label>
+                      <Label required>Carga semanal</Label>
                       <Input
                         value={durationToHHmm(form.jornadaFuncionarioConfig.cargaHorariaSemanal ?? "")}
                         onChange={(e) =>
@@ -969,7 +1088,7 @@ export default function FuncionariosPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Tolerância</Label>
+                      <Label required>Tolerância</Label>
                       <Input
                         value={durationToHHmm(form.jornadaFuncionarioConfig.toleranciaPadrao ?? "PT0S")}
                         onChange={(e) =>
@@ -986,7 +1105,7 @@ export default function FuncionariosPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Intervalo</Label>
+                      <Label required>Intervalo</Label>
                       <Input
                         value={durationToHHmm(form.jornadaFuncionarioConfig.intervaloPadrao ?? "")}
                         onChange={(e) =>
@@ -1001,7 +1120,7 @@ export default function FuncionariosPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Descanso entre jornadas</Label>
+                      <Label required>Descanso entre jornadas</Label>
                       <Input
                         value={durationToHHmm(form.jornadaFuncionarioConfig.tempoDescansoEntreJornada ?? "")}
                         onChange={(e) =>
@@ -1033,7 +1152,7 @@ export default function FuncionariosPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Saída padrão</Label>
+                      <Label required>Saída padrão</Label>
                       <Input
                         type="time"
                         value={form.jornadaFuncionarioConfig.saidaPadrao}
@@ -1103,7 +1222,18 @@ export default function FuncionariosPage() {
             </Button>
             <Button
               onClick={formOpen === "create" ? handleSubmitCreate : handleSubmitEdit}
-              disabled={createMutation.isPending || updateMutation.isPending}
+              disabled={
+                createMutation.isPending ||
+                updateMutation.isPending ||
+                (formOpen === "create" &&
+                  (!form.username?.trim() ||
+                    !form.nomeCompleto?.trim() ||
+                    !form.primeiroNome?.trim() ||
+                    !form.ultimoNome?.trim() ||
+                    !form.cpf?.trim() ||
+                    !form.email?.trim() ||
+                    !form.senha?.trim()))
+              }
             >
               {formOpen === "create" ? "Criar" : "Salvar"}
             </Button>
@@ -1121,7 +1251,7 @@ export default function FuncionariosPage() {
             Nova senha para <strong>{resetSenhaTarget?.username}</strong>
           </p>
           <div className="space-y-2 py-2">
-            <Label>Nova senha</Label>
+            <Label required>Nova senha</Label>
             <Input
               type="password"
               value={senhaNova}
@@ -1153,7 +1283,7 @@ export default function FuncionariosPage() {
             Novo e-mail para <strong>{resetEmailTarget?.username}</strong>
           </p>
           <div className="space-y-2 py-2">
-            <Label>Novo e-mail</Label>
+            <Label required>Novo e-mail</Label>
             <Input
               type="email"
               value={emailNovo}

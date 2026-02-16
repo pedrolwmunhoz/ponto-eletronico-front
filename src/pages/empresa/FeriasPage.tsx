@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Plus } from "lucide-react";
+import { CalendarDays, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,12 +38,16 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { useToast } from "@/hooks/use-toast";
+import { useValidation } from "@/hooks/useValidation";
+import { FieldExpectedStatus } from "@/components/ui/field-with-expected";
+import { validateData, validateRequiredSelect } from "@/lib/validations";
 import {
   listarFeriasAfastamentosEmpresa,
   criarAfastamento,
   listarFuncionarios,
 } from "@/lib/api-empresa";
 import type { CriarAfastamentoRequest } from "@/types/empresa";
+import { TIPO_AFASTAMENTO_OPCOES } from "@/types/empresa";
 
 function formatDate(s: string | null) {
   if (!s) return "—";
@@ -60,6 +64,8 @@ export default function FeriasPage() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
   const [size] = useState(10);
+  const [nome, setNome] = useState("");
+  const [nomeInput, setNomeInput] = useState("");
   const [open, setOpen] = useState(false);
   const [funcionarioId, setFuncionarioId] = useState("");
   const [tipoAfastamentoId, setTipoAfastamentoId] = useState("");
@@ -67,10 +73,29 @@ export default function FeriasPage() {
   const [dataFim, setDataFim] = useState("");
   const [observacao, setObservacao] = useState("");
 
+  const { getError, getTouched, handleBlur, handleChange, validateAll } = useValidation();
+
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["empresa", "ferias-afastamentos", page, size],
-    queryFn: () => listarFeriasAfastamentosEmpresa({ page, size }),
+    queryKey: ["empresa", "ferias-afastamentos", page, size, nome],
+    queryFn: () => listarFeriasAfastamentosEmpresa({ page, size, nome: nome || undefined }),
   });
+
+  useEffect(() => {
+    if (isError && error) {
+      const msg = (error as { response?: { data?: { mensagem?: string } }; message?: string })?.response?.data?.mensagem ?? (error as Error)?.message ?? "Erro ao carregar.";
+      toast({ variant: "destructive", title: "Erro", description: msg });
+    }
+  }, [isError, error, toast]);
+
+  const handleSearch = () => {
+    setNome(nomeInput.trim());
+    setPage(0);
+  };
+  const handleClearSearch = () => {
+    setNomeInput("");
+    setNome("");
+    setPage(0);
+  };
 
   const { data: funcionariosData } = useQuery({
     queryKey: ["empresa", "funcionarios", 0, 100],
@@ -98,17 +123,30 @@ export default function FeriasPage() {
       toast({
         variant: "destructive",
         title: "Erro ao criar afastamento",
-        description: err.response?.data?.message ?? "Tente novamente.",
+        description: err.response?.data?.mensagem ?? "Tente novamente.",
       });
     },
   });
 
+  const validadoresAfastamento = {
+    funcionarioId: (v: string) => validateRequiredSelect(v, "Selecione o funcionário."),
+    tipoAfastamentoId: (v: string) => validateRequiredSelect(v, "Selecione o tipo de afastamento."),
+    dataInicio: (v: string) => validateData(v, true),
+    dataFim: (v: string) => validateData(v, false),
+  };
+
   const handleSubmit = () => {
-    const tid = parseInt(tipoAfastamentoId, 10);
-    if (!funcionarioId || !tipoAfastamentoId || !dataInicio || isNaN(tid)) {
-      toast({ variant: "destructive", title: "Preencha funcionário, tipo e data de início." });
+    const ok = validateAll([
+      ["funcionarioId", funcionarioId, validadoresAfastamento.funcionarioId],
+      ["tipoAfastamentoId", tipoAfastamentoId, validadoresAfastamento.tipoAfastamentoId],
+      ["dataInicio", dataInicio, validadoresAfastamento.dataInicio],
+      ["dataFim", dataFim, validadoresAfastamento.dataFim],
+    ]);
+    if (!ok) {
+      toast({ variant: "destructive", title: "Corrija os campos antes de criar." });
       return;
     }
+    const tid = parseInt(tipoAfastamentoId, 10);
     criarMutation.mutate({
       tipoAfastamentoId: tid,
       dataInicio,
@@ -145,9 +183,12 @@ export default function FeriasPage() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label>Funcionário *</Label>
-                <Select value={funcionarioId} onValueChange={setFuncionarioId}>
-                  <SelectTrigger>
+                <Label required>Funcionário</Label>
+                <Select
+                  value={funcionarioId}
+                  onValueChange={(v) => { setFuncionarioId(v); handleChange("funcionarioId", v, validadoresAfastamento.funcionarioId); }}
+                >
+                  <SelectTrigger aria-invalid={!!getError("funcionarioId")}>
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
@@ -158,27 +199,39 @@ export default function FeriasPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <FieldExpectedStatus fieldKey="funcionarioId" value={funcionarioId} error={getError("funcionarioId")} touched={getTouched("funcionarioId")} />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="tipoAfastamentoId">ID tipo afastamento *</Label>
-                <Input
-                  id="tipoAfastamentoId"
-                  type="number"
-                  min={1}
+                <Label htmlFor="tipoAfastamentoId" required>Tipo de afastamento</Label>
+                <Select
                   value={tipoAfastamentoId}
-                  onChange={(e) => setTipoAfastamentoId(e.target.value)}
-                  placeholder="ex: 1"
-                />
+                  onValueChange={(v) => { setTipoAfastamentoId(v); handleChange("tipoAfastamentoId", v, validadoresAfastamento.tipoAfastamentoId); }}
+                >
+                  <SelectTrigger id="tipoAfastamentoId" aria-invalid={!!getError("tipoAfastamentoId")}>
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIPO_AFASTAMENTO_OPCOES.map((op) => (
+                      <SelectItem key={op.id} value={String(op.id)}>
+                        {op.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldExpectedStatus fieldKey="tipoAfastamentoId" value={tipoAfastamentoId} error={getError("tipoAfastamentoId")} touched={getTouched("tipoAfastamentoId")} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="dataInicio">Data início *</Label>
+                  <Label htmlFor="dataInicio" required>Data início</Label>
                   <Input
                     id="dataInicio"
                     type="date"
                     value={dataInicio}
-                    onChange={(e) => setDataInicio(e.target.value)}
+                    onChange={(e) => { setDataInicio(e.target.value); handleChange("dataInicio", e.target.value, validadoresAfastamento.dataInicio); }}
+                    onBlur={() => handleBlur("dataInicio", dataInicio, validadoresAfastamento.dataInicio)}
+                    aria-invalid={!!getError("dataInicio")}
                   />
+                  <FieldExpectedStatus fieldKey="dataInicio" value={dataInicio} error={getError("dataInicio")} touched={getTouched("dataInicio")} />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="dataFim">Data fim (opcional)</Label>
@@ -186,8 +239,11 @@ export default function FeriasPage() {
                     id="dataFim"
                     type="date"
                     value={dataFim}
-                    onChange={(e) => setDataFim(e.target.value)}
+                    onChange={(e) => { setDataFim(e.target.value); handleChange("dataFim", e.target.value, validadoresAfastamento.dataFim); }}
+                    onBlur={() => handleBlur("dataFim", dataFim, validadoresAfastamento.dataFim)}
+                    aria-invalid={!!getError("dataFim")}
                   />
+                  <FieldExpectedStatus fieldKey="dataFim" value={dataFim} error={getError("dataFim")} touched={getTouched("dataFim")} />
                 </div>
               </div>
               <div className="grid gap-2">
@@ -213,24 +269,38 @@ export default function FeriasPage() {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4">
           <CardTitle className="flex items-center gap-2 text-base">
             <CalendarDays className="h-5 w-5" />
             Listagem
           </CardTitle>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              placeholder="Buscar por nome..."
+              value={nomeInput}
+              onChange={(e) => setNomeInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              className="w-48"
+            />
+            <Button variant="secondary" size="sm" onClick={handleSearch} className="gap-1">
+              <Search className="h-4 w-4" />
+              Buscar
+            </Button>
+            {(nome || nomeInput) && (
+              <Button variant="ghost" size="sm" onClick={handleClearSearch}>
+                Limpar
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading && (
             <div className="py-8 text-center text-sm text-muted-foreground">Carregando...</div>
           )}
-          {isError && (
-            <div className="py-8 text-center text-sm text-destructive">
-              {(error as Error)?.message ?? "Erro ao carregar."}
-            </div>
-          )}
-          {!isLoading && !isError && data && (
+          {!isLoading && (data || isError) && (
             <>
-              <Table>
+              <div className="h-[600px] overflow-y-auto rounded-md border">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Funcionário</TableHead>
@@ -241,14 +311,14 @@ export default function FeriasPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.items.length === 0 ? (
+                  {(data?.items ?? []).length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                         Nenhum registro encontrado.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    data.items.map((item, idx) => (
+                    (data?.items ?? []).map((item, idx) => (
                       <TableRow key={idx}>
                         <TableCell>{item.nomeFuncionario ?? "—"}</TableCell>
                         <TableCell>{item.nomeAfastamento ?? "—"}</TableCell>
@@ -260,9 +330,10 @@ export default function FeriasPage() {
                   )}
                 </TableBody>
               </Table>
+              </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t pt-4">
                   <p className="text-sm text-muted-foreground">
-                    Página {page + 1} de {totalPaginas} • {data.total} registro(s)
+                    Página {page + 1} de {totalPaginas} • {data?.total ?? 0} registro(s)
                   </p>
                   <Pagination>
                     <PaginationContent>

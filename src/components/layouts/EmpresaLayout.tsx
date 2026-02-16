@@ -11,17 +11,18 @@ import {
   Settings,
   MapPin,
   CalendarDays,
+  Calendar,
   BarChart3,
   Shield,
   ChevronLeft,
   ChevronRight,
-  LogOut,
-  Building2,
   ClipboardList,
   Menu,
   Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ProfileDropdown } from "./ProfileDropdown";
+import { AppFooter } from "@/components/AppFooter";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -31,17 +32,17 @@ const navItems = [
   { to: "/empresa/banco-horas", icon: Wallet, label: "Banco de horas" },
   { to: "/empresa/solicitacoes", icon: ClipboardList, label: "Solicitações" },
   { to: "/empresa/ferias", icon: CalendarDays, label: "Férias/Afastamentos" },
+  { to: "/empresa/feriados", icon: Calendar, label: "Feriados" },
   { to: "/empresa/geofences", icon: MapPin, label: "Áreas de ponto" },
   { to: "/empresa/relatorios", icon: BarChart3, label: "Relatórios" },
   { to: "/empresa/auditoria", icon: Shield, label: "Auditoria" },
   { to: "/empresa/configuracoes", icon: Settings, label: "Configurações" },
-  { to: "/empresa/perfil", icon: Building2, label: "Perfil" },
 ];
 
 export default function EmpresaLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { logout } = useAuth();
+  const { logout, userType } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -139,20 +140,17 @@ export default function EmpresaLayout() {
 
           <div className="flex-1" />
 
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-2 text-muted-foreground hover:text-foreground"
-            onClick={logout}
-          >
-            <LogOut className="h-4 w-4" />
-            <span className="hidden sm:inline">Sair</span>
-          </Button>
+          {userType && (
+            <ProfileDropdown userType={userType} logout={logout} />
+          )}
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          <Outlet />
+        {/* Page content + footer no mesmo nível, footer depois da página */}
+        <main className="flex flex-1 flex-col overflow-y-auto">
+          <div className="flex-1 p-4 lg:p-6">
+            <Outlet />
+          </div>
+          <AppFooter />
         </main>
       </div>
     </div>

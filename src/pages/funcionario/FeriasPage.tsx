@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +18,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { useToast } from "@/hooks/use-toast";
 import { listarFeriasAfastamentosFuncionario } from "@/lib/api-funcionario";
 
 function formatDate(s: string | null) {
@@ -31,6 +32,7 @@ function formatDate(s: string | null) {
 }
 
 export default function FeriasFuncionarioPage() {
+  const { toast } = useToast();
   const [page, setPage] = useState(0);
   const [size] = useState(10);
 
@@ -38,6 +40,13 @@ export default function FeriasFuncionarioPage() {
     queryKey: ["funcionario", "ferias-afastamentos", page, size],
     queryFn: () => listarFeriasAfastamentosFuncionario({ page, size }),
   });
+
+  useEffect(() => {
+    if (isError && error) {
+      const msg = (error as { response?: { data?: { mensagem?: string } }; message?: string })?.response?.data?.mensagem ?? (error as Error)?.message ?? "Erro ao carregar.";
+      toast({ variant: "destructive", title: "Erro", description: msg });
+    }
+  }, [isError, error, toast]);
 
   const totalPaginas = data ? Math.max(1, Math.ceil(data.total / size)) : 1;
 
@@ -61,14 +70,10 @@ export default function FeriasFuncionarioPage() {
           {isLoading && (
             <div className="py-8 text-center text-sm text-muted-foreground">Carregando...</div>
           )}
-          {isError && (
-            <div className="py-8 text-center text-sm text-destructive">
-              {(error as Error)?.message ?? "Erro ao carregar."}
-            </div>
-          )}
-          {!isLoading && !isError && data && (
+          {!isLoading && (data || isError) && (
             <>
-              <Table>
+              <div className="h-[600px] overflow-y-auto rounded-md border">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Tipo / Afastamento</TableHead>
@@ -78,7 +83,7 @@ export default function FeriasFuncionarioPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.items.length === 0 ? (
+                  {(data?.items ?? []).length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                         Nenhum registro encontrado.
@@ -96,9 +101,10 @@ export default function FeriasFuncionarioPage() {
                   )}
                 </TableBody>
               </Table>
+              </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t pt-4">
                   <p className="text-sm text-muted-foreground">
-                    Página {page + 1} de {totalPaginas} • {data.total} registro(s)
+                    Página {page + 1} de {totalPaginas} • {data?.total ?? 0} registro(s)
                   </p>
                   <Pagination>
                     <PaginationContent>

@@ -28,7 +28,7 @@ export default function BaterPontoPage() {
   });
 
   const registrarMutation = useMutation({
-    mutationFn: () => registrarPontoApp(),
+    mutationFn: ({ idempotencyKey }: { idempotencyKey: string }) => registrarPontoApp(idempotencyKey),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["funcionario", "ponto"] });
       toast({ title: "Ponto registrado", description: "Batida registrada com sucesso." });
@@ -37,17 +37,17 @@ export default function BaterPontoPage() {
       toast({
         variant: "destructive",
         title: "Erro ao registrar",
-        description: err.response?.data?.message ?? "Tente novamente.",
+        description: err.response?.data?.mensagem ?? "Tente novamente.",
       });
     },
   });
 
   const hojeStr = `${ano}-${String(mes).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const batidasHoje =
-    pontoData?.items
-      ?.flatMap((j) => j.marcacoes ?? [])
+    (pontoData ?? [])
+      .flatMap((j) => j.marcacoes ?? [])
       .filter((m) => m.horario.startsWith(hojeStr))
-      .sort((a, b) => a.horario.localeCompare(b.horario)) ?? [];
+      .sort((a, b) => a.horario.localeCompare(b.horario));
 
   return (
     <div className="flex flex-col items-center gap-8 pt-8">
@@ -69,7 +69,7 @@ export default function BaterPontoPage() {
           <Button
             size="lg"
             className="h-16 w-full gap-3 text-lg"
-            onClick={() => registrarMutation.mutate()}
+            onClick={() => registrarMutation.mutate({ idempotencyKey: crypto.randomUUID() })}
             disabled={registrarMutation.isPending}
           >
             <Clock className="h-6 w-6" /> {registrarMutation.isPending ? "Registrando..." : "Bater Ponto"}

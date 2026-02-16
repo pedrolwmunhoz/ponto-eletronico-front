@@ -17,6 +17,9 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { useValidation } from "@/hooks/useValidation";
+import { validateDurationHhmm, validateTimezone, validateTotalDiasVencimento } from "@/lib/validations";
+import { FieldExpectedStatus } from "@/components/ui/field-with-expected";
 import { configInicialEmpresa } from "@/lib/api-empresa";
 import { durationToHHmm, hhmmToDuration } from "@/lib/duration";
 import type {
@@ -58,13 +61,27 @@ export default function ConfigInicialPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { getError, getTouched, handleBlur, handleChange, validateAll } = useValidation();
   const [jornada, setJornada] = useState<EmpresaJornadaConfigRequest>(defaultJornada);
   const [banco, setBanco] = useState<EmpresaBancoHorasConfigRequest>(defaultBanco);
   const [geofences, setGeofences] = useState<UsuarioGeofenceRequest[]>([]);
   const [buscandoLocal, setBuscandoLocal] = useState<number | null>(null);
 
   const mutation = useMutation({
-    mutationFn: (body: EmpresaConfigInicialRequest) => configInicialEmpresa(body),
+    mutationFn: (body: EmpresaConfigInicialRequest) => {
+      const ok = validateAll([
+        ["cargaDiariaPadrao", durationToHHmm(body.empresaJornadaConfig.cargaHorariaDiaria ?? ""), (v) => validateDurationHhmm(v, true)],
+        ["cargaSemanalPadrao", durationToHHmm(body.empresaJornadaConfig.cargaHorariaSemanal ?? ""), (v) => validateDurationHhmm(v, true)],
+        ["intervaloPadrao", durationToHHmm(body.empresaJornadaConfig.intervaloPadrao ?? ""), (v) => validateDurationHhmm(v, true)],
+        ["timezone", body.empresaJornadaConfig.timezone, (v) => validateTimezone(v, true)],
+        ["totalDiasVencimento", body.empresaBancoHorasConfig?.totalDiasVencimento ?? 0, validateTotalDiasVencimento],
+      ]);
+      if (!ok) {
+        toast({ variant: "destructive", title: "Corrija os erros antes de salvar." });
+        throw new Error("Validação falhou");
+      }
+      return configInicialEmpresa(body);
+    },
     onSuccess: async () => {
       await queryClient.refetchQueries({ queryKey: ["empresa", "config-inicial-status"] });
       toast({ title: "Configuração inicial salva", description: "Sua empresa está configurada." });
@@ -74,7 +91,7 @@ export default function ConfigInicialPage() {
       toast({
         variant: "destructive",
         title: "Erro ao salvar",
-        description: err.response?.data?.message ?? "Não foi possível salvar a configuração.",
+        description: err.response?.data?.mensagem ?? "Não foi possível salvar a configuração.",
       });
     },
   });
@@ -158,7 +175,7 @@ export default function ConfigInicialPage() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Tipo de escala jornada</Label>
+              <Label required>Tipo de escala jornada</Label>
               <Select
                 value={jornada.tipoEscalaJornadaId ? String(jornada.tipoEscalaJornadaId) : ""}
                 onValueChange={(v) => {
@@ -191,37 +208,61 @@ export default function ConfigInicialPage() {
               <Label>Carga diária</Label>
               <Input
                 value={durationToHHmm(jornada.cargaHorariaDiaria ?? "")}
-                onChange={(e) => setJornada((p) => ({ ...p, cargaHorariaDiaria: hhmmToDuration(e.target.value) }))}
+                onChange={(e) => {
+                  const v = hhmmToDuration(e.target.value);
+                  setJornada((p) => ({ ...p, cargaHorariaDiaria: v }));
+                  handleChange("cargaDiariaPadrao", durationToHHmm(v ?? ""), (x) => validateDurationHhmm(x, true));
+                }}
+                onBlur={() => handleBlur("cargaDiariaPadrao", durationToHHmm(jornada.cargaHorariaDiaria ?? ""), (x) => validateDurationHhmm(x, true))}
                 placeholder="08:00"
               />
+              <FieldExpectedStatus fieldKey="cargaDiariaPadrao" value={durationToHHmm(jornada.cargaHorariaDiaria ?? "")} error={getError("cargaDiariaPadrao")} touched={getTouched("cargaDiariaPadrao")} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Carga semanal</Label>
+              <Label required>Carga semanal</Label>
               <Input
                 value={durationToHHmm(jornada.cargaHorariaSemanal ?? "")}
-                onChange={(e) => setJornada((p) => ({ ...p, cargaHorariaSemanal: hhmmToDuration(e.target.value) }))}
+                onChange={(e) => {
+                  const v = hhmmToDuration(e.target.value);
+                  setJornada((p) => ({ ...p, cargaHorariaSemanal: v }));
+                  handleChange("cargaSemanalPadrao", durationToHHmm(v ?? ""), (x) => validateDurationHhmm(x, true));
+                }}
+                onBlur={() => handleBlur("cargaSemanalPadrao", durationToHHmm(jornada.cargaHorariaSemanal ?? ""), (x) => validateDurationHhmm(x, true))}
                 placeholder="44:00"
               />
+              <FieldExpectedStatus fieldKey="cargaSemanalPadrao" value={durationToHHmm(jornada.cargaHorariaSemanal ?? "")} error={getError("cargaSemanalPadrao")} touched={getTouched("cargaSemanalPadrao")} />
             </div>
             <div className="space-y-2">
               <Label>Tolerância</Label>
               <Input
                 value={durationToHHmm(jornada.toleranciaPadrao ?? "PT0S")}
-                onChange={(e) => setJornada((p) => ({ ...p, toleranciaPadrao: hhmmToDuration(e.target.value) || "PT0S" }))}
+                onChange={(e) => {
+                  const v = hhmmToDuration(e.target.value) || "PT0S";
+                  setJornada((p) => ({ ...p, toleranciaPadrao: v }));
+                  handleChange("toleranciaPadrao", durationToHHmm(v), (x) => validateDurationHhmm(x, false));
+                }}
+                onBlur={() => handleBlur("toleranciaPadrao", durationToHHmm(jornada.toleranciaPadrao ?? "PT0S"), (x) => validateDurationHhmm(x, false))}
                 placeholder="00:00"
               />
+              <FieldExpectedStatus fieldKey="toleranciaPadrao" value={durationToHHmm(jornada.toleranciaPadrao ?? "PT0S")} error={getError("toleranciaPadrao")} touched={getTouched("toleranciaPadrao")} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Intervalo</Label>
+              <Label required>Intervalo</Label>
               <Input
                 value={durationToHHmm(jornada.intervaloPadrao ?? "")}
-                onChange={(e) => setJornada((p) => ({ ...p, intervaloPadrao: hhmmToDuration(e.target.value) }))}
+                onChange={(e) => {
+                  const v = hhmmToDuration(e.target.value);
+                  setJornada((p) => ({ ...p, intervaloPadrao: v }));
+                  handleChange("intervaloPadrao", durationToHHmm(v ?? ""), (x) => validateDurationHhmm(x, true));
+                }}
+                onBlur={() => handleBlur("intervaloPadrao", durationToHHmm(jornada.intervaloPadrao ?? ""), (x) => validateDurationHhmm(x, true))}
                 placeholder="01:00"
               />
+              <FieldExpectedStatus fieldKey="intervaloPadrao" value={durationToHHmm(jornada.intervaloPadrao ?? "")} error={getError("intervaloPadrao")} touched={getTouched("intervaloPadrao")} />
             </div>
             <div className="space-y-2">
               <Label>Descanso entre jornadas</Label>
@@ -234,7 +275,7 @@ export default function ConfigInicialPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Entrada padrão</Label>
+              <Label required>Entrada padrão</Label>
               <Input
                 type="time"
                 value={jornada.entradaPadrao}
@@ -242,7 +283,7 @@ export default function ConfigInicialPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Saída padrão</Label>
+              <Label required>Saída padrão</Label>
               <Input
                 type="time"
                 value={jornada.saidaPadrao}
@@ -254,9 +295,14 @@ export default function ConfigInicialPage() {
             <Label>Timezone</Label>
             <Input
               value={jornada.timezone}
-              onChange={(e) => setJornada((p) => ({ ...p, timezone: e.target.value }))}
+              onChange={(e) => {
+                setJornada((p) => ({ ...p, timezone: e.target.value }));
+                handleChange("timezone", e.target.value, (x) => validateTimezone(x, true));
+              }}
+              onBlur={() => handleBlur("timezone", jornada.timezone, (x) => validateTimezone(x, true))}
               placeholder="America/Sao_Paulo"
             />
+            <FieldExpectedStatus fieldKey="timezone" value={jornada.timezone} error={getError("timezone")} touched={getTouched("timezone")} />
           </div>
           <Separator className="my-4" />
           <p className="text-sm text-muted-foreground">Marque as opções desejadas para o registro de ponto:</p>
@@ -306,14 +352,20 @@ export default function ConfigInicialPage() {
             <Label htmlFor="banco-ativo">Ativo</Label>
           </div>
           <div className="space-y-2 max-w-xs">
-            <Label>Total dias para vencimento</Label>
+            <Label required>Total dias para vencimento</Label>
             <Input
               type="number"
               min={1}
               value={banco.totalDiasVencimento || ""}
-              onChange={(e) => setBanco((p) => ({ ...p, totalDiasVencimento: parseInt(e.target.value, 10) || 0 }))}
+              onChange={(e) => {
+                const n = parseInt(e.target.value, 10) || 0;
+                setBanco((p) => ({ ...p, totalDiasVencimento: n }));
+                handleChange("totalDiasVencimento", n, validateTotalDiasVencimento);
+              }}
+              onBlur={() => handleBlur("totalDiasVencimento", banco.totalDiasVencimento ?? 0, validateTotalDiasVencimento)}
               placeholder="365"
             />
+            <FieldExpectedStatus fieldKey="totalDiasVencimento" value={String(banco.totalDiasVencimento ?? "")} error={getError("totalDiasVencimento")} touched={getTouched("totalDiasVencimento")} />
           </div>
         </CardContent>
       </Card>
@@ -408,7 +460,7 @@ export default function ConfigInicialPage() {
       </Card>
 
       <div className="flex justify-end">
-        <Button onClick={handleSubmit} disabled={mutation.isPending}>
+        <Button className="mb-[5.5rem]" onClick={handleSubmit} disabled={mutation.isPending}>
           {mutation.isPending ? "Salvando..." : "Salvar configuração inicial"}
         </Button>
       </div>

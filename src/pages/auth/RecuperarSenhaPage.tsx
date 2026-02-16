@@ -5,8 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldWithExpected } from "@/components/ui/field-with-expected";
 import { Clock, ArrowLeft, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useValidation } from "@/hooks/useValidation";
+import { validateEmail, validateCodigoRecuperacao, validateSenha, getFieldExpected } from "@/lib/validations";
 
 type Step = "email" | "codigo" | "nova-senha" | "sucesso";
 
@@ -20,16 +23,18 @@ export default function RecuperarSenhaPage() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { getError, getTouched, handleBlur, handleChange, validateAll } = useValidation();
 
   const handleEnviarEmail = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateAll([["email", email, (v) => validateEmail(v, true)]])) return;
     setLoading(true);
     try {
       await api.post("/api/auth/recuperar-senha", { email });
       setStep("codigo");
       toast({ title: "Código enviado", description: "Verifique seu email." });
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro", description: error.response?.data?.message || "Email não encontrado." });
+      toast({ variant: "destructive", title: "Erro", description: error.response?.data?.mensagem || "Email não encontrado." });
     } finally {
       setLoading(false);
     }
@@ -37,13 +42,14 @@ export default function RecuperarSenhaPage() {
 
   const handleValidarCodigo = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateAll([["codigo", codigo, validateCodigoRecuperacao]])) return;
     setLoading(true);
     try {
       const { data } = await api.post("/api/auth/validar-codigo", { codigo });
       setToken(data.token);
       setStep("nova-senha");
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro", description: error.response?.data?.message || "Código inválido." });
+      toast({ variant: "destructive", title: "Erro", description: error.response?.data?.mensagem || "Código inválido." });
     } finally {
       setLoading(false);
     }
@@ -55,12 +61,13 @@ export default function RecuperarSenhaPage() {
       toast({ variant: "destructive", title: "Erro", description: "As senhas não coincidem." });
       return;
     }
+    if (!validateAll([["senhaNova", senhaNova, (v) => validateSenha(v, true, "Nova senha")]])) return;
     setLoading(true);
     try {
       await api.post("/api/auth/resetar-senha", { token, senhaNova });
       setStep("sucesso");
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro", description: error.response?.data?.message || "Erro ao redefinir senha." });
+      toast({ variant: "destructive", title: "Erro", description: error.response?.data?.mensagem || "Erro ao redefinir senha." });
     } finally {
       setLoading(false);
     }
@@ -86,10 +93,9 @@ export default function RecuperarSenhaPage() {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleEnviarEmail} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-                  </div>
+                  <FieldWithExpected name="email" label="Email" required expected={getFieldExpected("email")} error={getError("email")} showValid={getTouched("email") || email.trim().length > 0}>
+                    <Input id="email" type="email" placeholder="seu@email.com" value={email} onChange={(e) => { setEmail(e.target.value); handleChange("email", e.target.value, (v) => validateEmail(v, true)); }} onBlur={() => handleBlur("email", email, (v) => validateEmail(v, true))} aria-invalid={!!getError("email")} className="mt-1" />
+                  </FieldWithExpected>
                   <Button type="submit" className="w-full" disabled={loading}>{loading ? "Enviando..." : "Enviar código"}</Button>
                 </form>
               </CardContent>
@@ -104,10 +110,9 @@ export default function RecuperarSenhaPage() {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleValidarCodigo} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="codigo">Código</Label>
-                    <Input id="codigo" placeholder="000000" value={codigo} onChange={(e) => setCodigo(e.target.value)} required maxLength={6} className="text-center text-2xl tracking-[0.5em]" />
-                  </div>
+                  <FieldWithExpected name="codigo" label="Código" required expected={getFieldExpected("codigo")} error={getError("codigo")} showValid={getTouched("codigo") || codigo.trim().length > 0}>
+                    <Input id="codigo" placeholder="000000" value={codigo} onChange={(e) => { setCodigo(e.target.value); handleChange("codigo", e.target.value, validateCodigoRecuperacao); }} onBlur={() => handleBlur("codigo", codigo, validateCodigoRecuperacao)} maxLength={6} className="mt-1 text-center text-2xl tracking-[0.5em]" aria-invalid={!!getError("codigo")} />
+                  </FieldWithExpected>
                   <Button type="submit" className="w-full" disabled={loading}>{loading ? "Verificando..." : "Verificar"}</Button>
                 </form>
               </CardContent>
@@ -122,13 +127,15 @@ export default function RecuperarSenhaPage() {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleResetarSenha} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="senhaNova">Nova senha</Label>
-                    <Input id="senhaNova" type="password" placeholder="••••••••" value={senhaNova} onChange={(e) => setSenhaNova(e.target.value)} required minLength={6} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmar">Confirmar senha</Label>
-                    <Input id="confirmar" type="password" placeholder="••••••••" value={confirmarSenha} onChange={(e) => setConfirmarSenha(e.target.value)} required minLength={6} />
+                  <FieldWithExpected name="senhaNova" label="Nova senha" required expected={getFieldExpected("senhaNova")} error={getError("senhaNova")} showValid={getTouched("senhaNova") || senhaNova.length > 0}>
+                    <Input id="senhaNova" type="password" placeholder="••••••••" value={senhaNova} onChange={(e) => { setSenhaNova(e.target.value); handleChange("senhaNova", e.target.value, (v) => validateSenha(v, true, "Nova senha")); }} onBlur={() => handleBlur("senhaNova", senhaNova, (v) => validateSenha(v, true, "Nova senha"))} aria-invalid={!!getError("senhaNova")} className="mt-1" />
+                  </FieldWithExpected>
+                  <div className="space-y-1">
+                    <Label htmlFor="confirmar" required>Confirmar senha</Label>
+                    <Input id="confirmar" type="password" placeholder="••••••••" value={confirmarSenha} onChange={(e) => setConfirmarSenha(e.target.value)} className="mt-1" />
+                    <p className="text-xs text-muted-foreground">Esperado: {getFieldExpected("confirmarSenha")}</p>
+                    {confirmarSenha && senhaNova !== confirmarSenha && <p role="alert" className="text-sm text-destructive">As senhas não coincidem.</p>}
+                    {confirmarSenha && senhaNova === confirmarSenha && <p className="text-sm text-green-600 dark:text-green-500">Válido</p>}
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>{loading ? "Salvando..." : "Redefinir senha"}</Button>
                 </form>
