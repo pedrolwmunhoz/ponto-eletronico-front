@@ -59,7 +59,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useValidation } from "@/hooks/useValidation";
-import { formatCpf, maskCpfInput } from "@/lib/format";
+import { formatCpf, formatTelefoneNumero, formatTitleCase, maskCpfInput, maskDddInput, maskNumeroTelefoneInput } from "@/lib/format";
 import {
   validateUsername,
   validateEmail,
@@ -368,7 +368,11 @@ export default function FuncionariosPage() {
     if (!ativarTelefone) return null;
     const t = form.usuarioTelefone;
     if (!t?.codigoPais?.trim() || !t?.ddd?.trim() || !t?.numero?.trim()) return null;
-    return { codigoPais: t.codigoPais.trim(), ddd: t.ddd.trim(), numero: t.numero.trim() };
+    return {
+      codigoPais: t.codigoPais.replace(/\D/g, "").trim(),
+      ddd: t.ddd.replace(/\D/g, "").trim(),
+      numero: t.numero.replace(/\D/g, "").trim(),
+    };
   };
 
   const buildContrato = (): ContratoFuncionarioRequest | null => {
@@ -457,7 +461,7 @@ export default function FuncionariosPage() {
       nomeCompleto: form.nomeCompleto.trim(),
       primeiroNome: form.primeiroNome.trim(),
       ultimoNome: form.ultimoNome.trim(),
-      cpf: form.cpf.trim(),
+      cpf: form.cpf.replace(/\D/g, "").trim(),
       dataNascimento: form.dataNascimento ?? null,
       email: form.email.trim(),
       usuarioTelefone: buildTelefone(),
@@ -697,7 +701,7 @@ export default function FuncionariosPage() {
                     }));
                     handleChange("nomeCompleto", v, (x) => validateNomeCompleto(x, true));
                   }}
-                  onBlur={() => handleBlur("nomeCompleto", form.nomeCompleto ?? "", (x) => validateNomeCompleto(x, true))}
+                  onBlur={() => { const formatted = formatTitleCase(form.nomeCompleto ?? ""); setForm((prev) => ({ ...prev, nomeCompleto: formatted, ...(formatted ? fillFromNomeCompleto(formatted) : {}) })); handleBlur("nomeCompleto", formatted, (x) => validateNomeCompleto(x, true)); }}
                   placeholder="Ex: João Pedro da Silva"
                 />
                 <FieldExpectedStatus fieldKey="nomeCompleto" value={form.nomeCompleto ?? ""} error={getError("nomeCompleto")} touched={getTouched("nomeCompleto")} />
@@ -708,8 +712,9 @@ export default function FuncionariosPage() {
                   <Input
                     value={form.primeiroNome}
                     onChange={(e) => {
-                      setForm((prev) => ({ ...prev, primeiroNome: e.target.value }));
-                      handleChange("primeiroNome", e.target.value, (x) => validatePrimeiroNome(x, true));
+                      const formatted = formatTitleCase(e.target.value);
+                      setForm((prev) => ({ ...prev, primeiroNome: formatted }));
+                      handleChange("primeiroNome", formatted, (x) => validatePrimeiroNome(x, true));
                     }}
                     onBlur={() => handleBlur("primeiroNome", form.primeiroNome ?? "", (x) => validatePrimeiroNome(x, true))}
                     placeholder="Ex: João"
@@ -722,8 +727,9 @@ export default function FuncionariosPage() {
                   <Input
                     value={form.ultimoNome}
                     onChange={(e) => {
-                      setForm((prev) => ({ ...prev, ultimoNome: e.target.value }));
-                      handleChange("ultimoNome", e.target.value, (x) => validateUltimoNome(x, true));
+                      const formatted = formatTitleCase(e.target.value);
+                      setForm((prev) => ({ ...prev, ultimoNome: formatted }));
+                      handleChange("ultimoNome", formatted, (x) => validateUltimoNome(x, true));
                     }}
                     onBlur={() => handleBlur("ultimoNome", form.ultimoNome ?? "", (x) => validateUltimoNome(x, true))}
                     placeholder="Ex: Silva"

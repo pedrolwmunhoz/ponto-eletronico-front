@@ -5,12 +5,13 @@ import Navbar from "@/components/landing/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldWithExpected } from "@/components/ui/field-with-expected";
 import { FieldError } from "@/components/ui/field-error";
-import { maskCnpjInput } from "@/lib/format";
+import { maskCnpjInput, maskCepInput, maskDddInput, maskNumeroTelefoneInput, maskNumeroEnderecoInput, formatTitleCase } from "@/lib/format";
+import { useEstadosCidades } from "@/lib/useEstadosCidades";
 import { getFieldExpected } from "@/lib/validations";
-import { Switch } from "@/components/ui/switch";
 import { Clock, ArrowLeft, ArrowRight, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useValidation } from "@/hooks/useValidation";
@@ -66,11 +67,9 @@ export default function CadastroEmpresaPage() {
   const [senha, setSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
 
-  // Ativar = incluir objeto na request (opcional)
-  const [incluirEndereco, setIncluirEndereco] = useState(true);
-  const [incluirTelefone, setIncluirTelefone] = useState(false);
-
   const [sucesso, setSucesso] = useState(false);
+  const { estados, getCidadesByUf, loading: loadingEstados } = useEstadosCidades();
+  const cidades = getCidadesByUf(uf);
 
   const validateStep1 = () =>
     validateAll([
@@ -78,7 +77,6 @@ export default function CadastroEmpresaPage() {
       ["cnpj", cnpj, (v) => validateCnpj(v, true)],
     ]);
   const validateStep2 = () =>
-    !incluirEndereco ||
     validateAll([
       ["rua", rua, (v) => validateRua(v, true)],
       ["numero", numero, (v) => validateNumeroEndereco(v, true)],
@@ -89,7 +87,6 @@ export default function CadastroEmpresaPage() {
       ["uf", uf, (v) => validateUf(v, true)],
     ]);
   const validateStep3 = () =>
-    !incluirTelefone ||
     validateAll([
       ["codigoPais", codigoPais.replace(/\D/g, ""), (v) => validateCodigoPais(v || null, true)],
       ["ddd", ddd, (v) => validateDdd(v, true)],
@@ -115,13 +112,9 @@ export default function CadastroEmpresaPage() {
       senha,
       razaoSocial,
       cnpj: cnpj.replace(/\D/g, ""),
+      empresaEndereco: { rua, numero, complemento: complemento || undefined, bairro, cidade, uf, cep: cep.replace(/\D/g, "") },
+      usuarioTelefone: { codigoPais: codigoPais.replace(/\D/g, ""), ddd: ddd.replace(/\D/g, ""), numero: telefone.replace(/\D/g, "") },
     };
-    if (incluirEndereco) {
-      body.empresaEndereco = { rua, numero, complemento: complemento || undefined, bairro, cidade, uf, cep: cep.replace(/\D/g, "") };
-    }
-    if (incluirTelefone) {
-      body.usuarioTelefone = { codigoPais: codigoPais.replace(/\D/g, ""), ddd, numero: telefone };
-    }
 
     try {
       await api.post("/api/empresa", body);
@@ -205,7 +198,18 @@ export default function CadastroEmpresaPage() {
             {step === 1 && (
               <>
                 <FieldWithExpected label="Razão Social" required expected={getFieldExpected("razaoSocial")} error={getError("razaoSocial")} showValid={getTouched("razaoSocial") || razaoSocial.trim().length > 0}>
-                  <Input placeholder="Nome da empresa" value={razaoSocial} onChange={(e) => { setRazaoSocial(e.target.value); handleChange("razaoSocial", e.target.value, (v) => validateRazaoSocial(v, true)); }} onBlur={() => handleBlur("razaoSocial", razaoSocial, (v) => validateRazaoSocial(v, true))} aria-invalid={!!getError("razaoSocial")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
+                  <Input
+                    placeholder="Nome da empresa"
+                    value={razaoSocial}
+                    onChange={(e) => {
+                      const formatted = formatTitleCase(e.target.value);
+                      setRazaoSocial(formatted);
+                      handleChange("razaoSocial", formatted, (v) => validateRazaoSocial(v, true));
+                    }}
+                    onBlur={() => handleBlur("razaoSocial", razaoSocial, (v) => validateRazaoSocial(v, true))}
+                    aria-invalid={!!getError("razaoSocial")}
+                    className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base"
+                  />
                 </FieldWithExpected>
                 <FieldWithExpected label="CNPJ" required expected={getFieldExpected("cnpj")} error={getError("cnpj")} showValid={getTouched("cnpj") || cnpj.trim().length > 0}>
                   <Input placeholder="00.000.000/0000-00" value={cnpj} onChange={(e) => { const next = maskCnpjInput(e.target.value); setCnpj(next); handleChange("cnpj", next, (v) => validateCnpj(v, true)); }} onBlur={() => handleBlur("cnpj", cnpj, (v) => validateCnpj(v, true))} aria-invalid={!!getError("cnpj")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
@@ -215,40 +219,51 @@ export default function CadastroEmpresaPage() {
 
             {step === 2 && (
               <>
-                <div className="flex items-center justify-between gap-2 rounded-lg border p-3 sm:p-4">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium sm:text-base">Incluir endereço</p>
-                    <p className="text-xs text-muted-foreground sm:text-sm">Ao ativar, o endereço será enviado no cadastro.</p>
-                  </div>
-                  <Switch checked={incluirEndereco} onCheckedChange={setIncluirEndereco} className="shrink-0" />
-                </div>
                 <div className="grid grid-cols-3 gap-2 sm:gap-3">
                   <div className="col-span-2">
                     <FieldWithExpected label="Rua" required expected={getFieldExpected("rua")} error={getError("rua")} showValid={getTouched("rua") || rua.trim().length > 0}>
-                      <Input value={rua} onChange={(e) => { setRua(e.target.value); handleChange("rua", e.target.value, (v) => validateRua(v, true)); }} onBlur={() => handleBlur("rua", rua, (v) => validateRua(v, true))} aria-invalid={!!getError("rua")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
+                      <Input value={rua} onChange={(e) => { const formatted = formatTitleCase(e.target.value); setRua(formatted); handleChange("rua", formatted, (v) => validateRua(v, true)); }} onBlur={() => handleBlur("rua", rua, (v) => validateRua(v, true))} aria-invalid={!!getError("rua")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
                     </FieldWithExpected>
                   </div>
                   <div>
                     <FieldWithExpected label="Número" required expected={getFieldExpected("numeroEndereco")} error={getError("numero")} showValid={getTouched("numero") || numero.trim().length > 0}>
-                      <Input value={numero} onChange={(e) => { setNumero(e.target.value); handleChange("numero", e.target.value, (v) => validateNumeroEndereco(v, true)); }} onBlur={() => handleBlur("numero", numero, (v) => validateNumeroEndereco(v, true))} aria-invalid={!!getError("numero")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
+                      <Input value={numero} onChange={(e) => { const next = maskNumeroEnderecoInput(e.target.value); setNumero(next); handleChange("numero", next, (v) => validateNumeroEndereco(v, true)); }} onBlur={() => handleBlur("numero", numero, (v) => validateNumeroEndereco(v, true))} placeholder="Ex: 100" aria-invalid={!!getError("numero")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
                     </FieldWithExpected>
                   </div>
                 </div>
                 <FieldWithExpected label="Complemento" expected={getFieldExpected("complemento")} error={getError("complemento")} showValid={getTouched("complemento") || complemento.trim().length > 0}>
-                  <Input value={complemento} onChange={(e) => { setComplemento(e.target.value); handleChange("complemento", e.target.value, validateComplemento); }} onBlur={() => handleBlur("complemento", complemento, validateComplemento)} aria-invalid={!!getError("complemento")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
+                  <Input value={complemento} onChange={(e) => { const formatted = formatTitleCase(e.target.value); setComplemento(formatted); handleChange("complemento", formatted, validateComplemento); }} onBlur={() => handleBlur("complemento", complemento, validateComplemento)} aria-invalid={!!getError("complemento")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
                 </FieldWithExpected>
                 <FieldWithExpected label="Bairro" required expected={getFieldExpected("bairro")} error={getError("bairro")} showValid={getTouched("bairro") || bairro.trim().length > 0}>
-                  <Input value={bairro} onChange={(e) => { setBairro(e.target.value); handleChange("bairro", e.target.value, (v) => validateBairro(v, true)); }} onBlur={() => handleBlur("bairro", bairro, (v) => validateBairro(v, true))} aria-invalid={!!getError("bairro")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
+                  <Input value={bairro} onChange={(e) => { const formatted = formatTitleCase(e.target.value); setBairro(formatted); handleChange("bairro", formatted, (v) => validateBairro(v, true)); }} onBlur={() => handleBlur("bairro", bairro, (v) => validateBairro(v, true))} aria-invalid={!!getError("bairro")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
                 </FieldWithExpected>
                 <div className="grid grid-cols-3 gap-2 sm:gap-3">
                   <FieldWithExpected label="CEP" required expected={getFieldExpected("cep")} error={getError("cep")} showValid={getTouched("cep") || cep.replace(/\D/g, "").length > 0}>
-                    <Input placeholder="00000-000" value={cep} onChange={(e) => { setCep(e.target.value); handleChange("cep", e.target.value, (v) => validateCep(v, true)); }} onBlur={() => handleBlur("cep", cep, (v) => validateCep(v, true))} aria-invalid={!!getError("cep")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
+                    <Input placeholder="00000-000" value={cep} onChange={(e) => { const next = maskCepInput(e.target.value); setCep(next); handleChange("cep", next, (v) => validateCep(v, true)); }} onBlur={() => handleBlur("cep", cep, (v) => validateCep(v, true))} aria-invalid={!!getError("cep")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
+                  </FieldWithExpected>
+                  <FieldWithExpected label="Estado" required expected={getFieldExpected("uf")} error={getError("uf")} showValid={getTouched("uf") || uf.trim().length > 0}>
+                    <Select value={uf || undefined} onValueChange={(v) => { setUf(v); setCidade(""); handleChange("uf", v, (x) => validateUf(x, true)); handleBlur("uf", v, (x) => validateUf(x, true)); handleChange("cidade", "", (x) => validateCidade(x, true)); }} disabled={loadingEstados}>
+                      <SelectTrigger aria-invalid={!!getError("uf")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base">
+                        <SelectValue placeholder="Selecione o estado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {estados.map((e) => (
+                          <SelectItem key={e.sigla} value={e.sigla}>{e.nomeEstado} - {e.sigla}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </FieldWithExpected>
                   <FieldWithExpected label="Cidade" required expected={getFieldExpected("cidade")} error={getError("cidade")} showValid={getTouched("cidade") || cidade.trim().length > 0}>
-                    <Input value={cidade} onChange={(e) => { setCidade(e.target.value); handleChange("cidade", e.target.value, (v) => validateCidade(v, true)); }} onBlur={() => handleBlur("cidade", cidade, (v) => validateCidade(v, true))} aria-invalid={!!getError("cidade")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
-                  </FieldWithExpected>
-                  <FieldWithExpected label="UF" required expected={getFieldExpected("uf")} error={getError("uf")} showValid={getTouched("uf") || uf.trim().length > 0}>
-                    <Input maxLength={2} placeholder="SP" value={uf} onChange={(e) => { setUf(e.target.value.toUpperCase()); handleChange("uf", e.target.value.toUpperCase(), (v) => validateUf(v, true)); }} onBlur={() => handleBlur("uf", uf, (v) => validateUf(v, true))} aria-invalid={!!getError("uf")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
+                    <Select value={cidade || undefined} onValueChange={(v) => { setCidade(v); handleChange("cidade", v, (x) => validateCidade(x, true)); handleBlur("cidade", v, (x) => validateCidade(x, true)); }} disabled={!uf || cidades.length === 0}>
+                      <SelectTrigger aria-invalid={!!getError("cidade")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base">
+                        <SelectValue placeholder={uf ? "Selecione a cidade" : "Primeiro selecione o estado"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cidades.map((c) => (
+                          <SelectItem key={c.id_cidade} value={c.nomeCidade}>{c.nomeCidade}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </FieldWithExpected>
                 </div>
               </>
@@ -256,23 +271,16 @@ export default function CadastroEmpresaPage() {
 
             {step === 3 && (
               <>
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div>
-                    <p className="font-medium">Incluir telefone</p>
-                    <p className="text-sm text-muted-foreground">Ao ativar, o telefone será enviado no cadastro.</p>
-                  </div>
-                  <Switch checked={incluirTelefone} onCheckedChange={setIncluirTelefone} />
-                </div>
                 <div className="grid grid-cols-4 gap-3">
                 <FieldWithExpected label="País" required expected={getFieldExpected("codigoPais")} error={getError("codigoPais")} showValid={getTouched("codigoPais") || codigoPais.replace(/\D/g, "").length > 0}>
                   <Input value={codigoPais} placeholder="55" onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); setCodigoPais(v); handleChange("codigoPais", v, (x) => validateCodigoPais(x || null, true)); }} onBlur={() => handleBlur("codigoPais", codigoPais.replace(/\D/g, ""), (v) => validateCodigoPais(v || null, true))} aria-invalid={!!getError("codigoPais")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
                 </FieldWithExpected>
                 <FieldWithExpected label="DDD" required expected={getFieldExpected("ddd")} error={getError("ddd")} showValid={getTouched("ddd") || ddd.trim().length > 0}>
-                  <Input placeholder="11" maxLength={5} value={ddd} onChange={(e) => { setDdd(e.target.value); handleChange("ddd", e.target.value, (v) => validateDdd(v, true)); }} onBlur={() => handleBlur("ddd", ddd, (v) => validateDdd(v, true))} aria-invalid={!!getError("ddd")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
+                  <Input placeholder="11" maxLength={5} value={ddd} onChange={(e) => { const next = maskDddInput(e.target.value); setDdd(next); handleChange("ddd", next, (v) => validateDdd(v, true)); }} onBlur={() => handleBlur("ddd", ddd, (v) => validateDdd(v, true))} aria-invalid={!!getError("ddd")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
                 </FieldWithExpected>
                 <div className="col-span-2">
                   <FieldWithExpected label="Número" required expected={getFieldExpected("telefone")} error={getError("telefone")} showValid={getTouched("telefone") || telefone.trim().length > 0}>
-                    <Input placeholder="99999-9999" value={telefone} onChange={(e) => { setTelefone(e.target.value); handleChange("telefone", e.target.value, (v) => validateNumeroTelefone(v, true)); }} onBlur={() => handleBlur("telefone", telefone, (v) => validateNumeroTelefone(v, true))} aria-invalid={!!getError("telefone")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
+                    <Input placeholder="99999-9999" value={telefone} onChange={(e) => { const next = maskNumeroTelefoneInput(e.target.value); setTelefone(next); handleChange("telefone", next, (v) => validateNumeroTelefone(v, true)); }} onBlur={() => handleBlur("telefone", telefone, (v) => validateNumeroTelefone(v, true))} aria-invalid={!!getError("telefone")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
                   </FieldWithExpected>
                 </div>
               </div>

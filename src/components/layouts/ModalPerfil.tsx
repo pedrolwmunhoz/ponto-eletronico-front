@@ -54,13 +54,8 @@ import {
   TIPO_ESCALA_JORNADA_OPCOES,
 } from "@/types/empresa";
 import { durationToHHmm, hhmmToDuration } from "@/lib/duration";
-import { formatCpf, formatCnpj } from "@/lib/format";
-
-/** CEP: backend espera 8 dígitos (com ou sem hífen). */
-function normalizeCep(cep: string): string {
-  const digits = cep.replace(/\D/g, "");
-  return digits.length === 8 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : cep;
-}
+import { formatCpf, formatCnpj, formatTitleCase, maskCepInput, maskDddInput, maskNumeroTelefoneInput, maskNumeroEnderecoInput } from "@/lib/format";
+import { useEstadosCidades } from "@/lib/useEstadosCidades";
 
 interface ModalPerfilEmpresaProps {
   open: boolean;
@@ -72,6 +67,8 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { getError, getTouched, handleBlur, handleChange, validateAll, clearAll } = useValidation();
+  const { estados, getCidadesByUf, loading: loadingEstados } = useEstadosCidades();
+  const cidades = getCidadesByUf(form.uf);
   const [form, setForm] = useState({
     username: data.username ?? "",
     email: data.email ?? "",
@@ -190,9 +187,9 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
         if (hasNewTelefone) {
           tasks.push(() =>
             adicionarTelefone({
-              codigoPais: form.codigoPais.trim(),
-              ddd: form.ddd.trim(),
-              numero: form.numero.trim(),
+              codigoPais: form.codigoPais.replace(/\D/g, "").trim(),
+              ddd: form.ddd.replace(/\D/g, "").trim(),
+              numero: form.numero.replace(/\D/g, "").trim(),
             })
           );
         }
@@ -214,7 +211,7 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
             bairro: form.bairro.trim(),
             cidade: form.cidade.trim(),
             uf: form.uf.toUpperCase(),
-            cep: normalizeCep(form.cep),
+            cep: form.cep.replace(/\D/g, ""),
           })
         );
       }
@@ -327,7 +324,7 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
                   <Label className="text-sm font-medium" required>Código País</Label>
                   <Input
                     value={form.codigoPais}
-                    onChange={(e) => { setForm((p) => ({ ...p, codigoPais: e.target.value })); handleChange("codigoPais", e.target.value, (v) => validateCodigoPais(v, true)); }}
+                    onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 10); setForm((p) => ({ ...p, codigoPais: v })); handleChange("codigoPais", v, (x) => validateCodigoPais(x, true)); }}
                     onBlur={() => handleBlur("codigoPais", form.codigoPais, (v) => validateCodigoPais(v, true))}
                     placeholder="55"
                     className="mt-1"
@@ -339,7 +336,7 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
                   <Label className="text-sm font-medium" required>DDD</Label>
                   <Input
                     value={form.ddd}
-                    onChange={(e) => { setForm((p) => ({ ...p, ddd: e.target.value })); handleChange("ddd", e.target.value, (v) => validateDdd(v, true)); }}
+                    onChange={(e) => { const next = maskDddInput(e.target.value); setForm((p) => ({ ...p, ddd: next })); handleChange("ddd", next, (v) => validateDdd(v, true)); }}
                     onBlur={() => handleBlur("ddd", form.ddd, (v) => validateDdd(v, true))}
                     placeholder="11"
                     className="mt-1"
@@ -351,7 +348,7 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
                   <Label className="text-sm font-medium" required>Número</Label>
                   <Input
                     value={form.numero}
-                    onChange={(e) => { setForm((p) => ({ ...p, numero: e.target.value })); handleChange("numero", e.target.value, (v) => validateNumeroTelefone(v, true)); }}
+                    onChange={(e) => { const next = maskNumeroTelefoneInput(e.target.value); setForm((p) => ({ ...p, numero: next })); handleChange("numero", next, (v) => validateNumeroTelefone(v, true)); }}
                     onBlur={() => handleBlur("numero", form.numero, (v) => validateNumeroTelefone(v, true))}
                     placeholder="99999-9999"
                     className="mt-1"
@@ -369,7 +366,7 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
                   <Label className="text-sm font-medium" required>Rua</Label>
                   <Input
                     value={form.rua}
-                    onChange={(e) => { setForm((p) => ({ ...p, rua: e.target.value })); handleChange("rua", e.target.value, (v) => validateRua(v, true)); }}
+                    onChange={(e) => { const formatted = formatTitleCase(e.target.value); setForm((p) => ({ ...p, rua: formatted })); handleChange("rua", formatted, (v) => validateRua(v, true)); }}
                     onBlur={() => handleBlur("rua", form.rua, (v) => validateRua(v, true))}
                     className="mt-1"
                     aria-invalid={!!getError("rua")}
@@ -380,8 +377,9 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
                   <Label className="text-sm font-medium" required>Número</Label>
                   <Input
                     value={form.numeroEndereco}
-                    onChange={(e) => { setForm((p) => ({ ...p, numeroEndereco: e.target.value })); handleChange("numeroEndereco", e.target.value, (v) => validateNumeroEndereco(v, true)); }}
+                    onChange={(e) => { const next = maskNumeroEnderecoInput(e.target.value); setForm((p) => ({ ...p, numeroEndereco: next })); handleChange("numeroEndereco", next, (v) => validateNumeroEndereco(v, true)); }}
                     onBlur={() => handleBlur("numeroEndereco", form.numeroEndereco, (v) => validateNumeroEndereco(v, true))}
+                    placeholder="Ex: 100"
                     className="mt-1"
                     aria-invalid={!!getError("numeroEndereco")}
                   />
@@ -392,7 +390,7 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
                 <Label className="text-sm font-medium">Complemento</Label>
                 <Input
                   value={form.complemento}
-                  onChange={(e) => { setForm((p) => ({ ...p, complemento: e.target.value })); handleChange("complemento", e.target.value, validateComplemento); }}
+                  onChange={(e) => { const formatted = formatTitleCase(e.target.value); setForm((p) => ({ ...p, complemento: formatted })); handleChange("complemento", formatted, validateComplemento); }}
                   onBlur={() => handleBlur("complemento", form.complemento, validateComplemento)}
                   className="mt-1"
                   aria-invalid={!!getError("complemento")}
@@ -401,46 +399,51 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-sm font-medium" required>Bairro</Label>
-                  <Input
-                    value={form.bairro}
-                    onChange={(e) => { setForm((p) => ({ ...p, bairro: e.target.value })); handleChange("bairro", e.target.value, (v) => validateBairro(v, true)); }}
-                    onBlur={() => handleBlur("bairro", form.bairro, (v) => validateBairro(v, true))}
-                    className="mt-1"
-                    aria-invalid={!!getError("bairro")}
-                  />
-                  <FieldExpectedStatus fieldKey="bairro" value={form.bairro} error={getError("bairro")} touched={getTouched("bairro")} />
+                  <Label className="text-sm font-medium" required>Estado</Label>
+                  <Select value={form.uf || undefined} onValueChange={(v) => { setForm((p) => ({ ...p, uf: v, cidade: "" })); handleChange("uf", v, (x) => validateUf(x, true)); handleBlur("uf", v, (x) => validateUf(x, true)); handleChange("cidade", "", (x) => validateCidade(x, true)); }} disabled={loadingEstados}>
+                    <SelectTrigger className="mt-1" aria-invalid={!!getError("uf")}>
+                      <SelectValue placeholder="Selecione o estado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {estados.map((e) => (
+                        <SelectItem key={e.sigla} value={e.sigla}>{e.nomeEstado} - {e.sigla}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FieldExpectedStatus fieldKey="uf" value={form.uf} error={getError("uf")} touched={getTouched("uf")} />
                 </div>
                 <div>
                   <Label className="text-sm font-medium" required>Cidade</Label>
-                  <Input
-                    value={form.cidade}
-                    onChange={(e) => { setForm((p) => ({ ...p, cidade: e.target.value })); handleChange("cidade", e.target.value, (v) => validateCidade(v, true)); }}
-                    onBlur={() => handleBlur("cidade", form.cidade, (v) => validateCidade(v, true))}
-                    className="mt-1"
-                    aria-invalid={!!getError("cidade")}
-                  />
+                  <Select value={form.cidade || undefined} onValueChange={(v) => { setForm((p) => ({ ...p, cidade: v })); handleChange("cidade", v, (x) => validateCidade(x, true)); handleBlur("cidade", v, (x) => validateCidade(x, true)); }} disabled={!form.uf || cidades.length === 0}>
+                    <SelectTrigger className="mt-1" aria-invalid={!!getError("cidade")}>
+                      <SelectValue placeholder={form.uf ? "Selecione a cidade" : "Primeiro selecione o estado"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {cidades.map((c) => (
+                        <SelectItem key={c.id_cidade} value={c.nomeCidade}>{c.nomeCidade}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FieldExpectedStatus fieldKey="cidade" value={form.cidade} error={getError("cidade")} touched={getTouched("cidade")} />
                 </div>
               </div>
+              <div>
+                <Label className="text-sm font-medium" required>Bairro</Label>
+                <Input
+                  value={form.bairro}
+                  onChange={(e) => { const formatted = formatTitleCase(e.target.value); setForm((p) => ({ ...p, bairro: formatted })); handleChange("bairro", formatted, (v) => validateBairro(v, true)); }}
+                  onBlur={() => handleBlur("bairro", form.bairro, (v) => validateBairro(v, true))}
+                  className="mt-1"
+                  aria-invalid={!!getError("bairro")}
+                />
+                <FieldExpectedStatus fieldKey="bairro" value={form.bairro} error={getError("bairro")} touched={getTouched("bairro")} />
+              </div>
               <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <Label className="text-sm font-medium" required>UF</Label>
-                  <Input
-                    value={form.uf}
-                    onChange={(e) => { setForm((p) => ({ ...p, uf: e.target.value.toUpperCase().slice(0, 2) })); handleChange("uf", e.target.value.toUpperCase().slice(0, 2), (v) => validateUf(v, true)); }}
-                    onBlur={() => handleBlur("uf", form.uf, (v) => validateUf(v, true))}
-                    maxLength={2}
-                    className="mt-1"
-                    aria-invalid={!!getError("uf")}
-                  />
-                  <FieldExpectedStatus fieldKey="uf" value={form.uf} error={getError("uf")} touched={getTouched("uf")} />
-                </div>
                 <div>
                   <Label className="text-sm font-medium" required>CEP</Label>
                   <Input
                     value={form.cep}
-                    onChange={(e) => { setForm((p) => ({ ...p, cep: e.target.value })); handleChange("cep", e.target.value, (v) => validateCep(v, true)); }}
+                    onChange={(e) => { const next = maskCepInput(e.target.value); setForm((p) => ({ ...p, cep: next })); handleChange("cep", next, (v) => validateCep(v, true)); }}
                     onBlur={() => handleBlur("cep", form.cep, (v) => validateCep(v, true))}
                     placeholder="00000-000"
                     className="mt-1"

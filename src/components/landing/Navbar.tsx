@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Menu, Clock } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const navLinks = [
   { label: "Funcionalidades", href: "#funcionalidades" },
@@ -15,9 +16,21 @@ const Navbar = () => {
   const [open, setOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const { isAuthenticated, userType } = useAuth();
   const isLanding = location.pathname === "/";
   const isCadastro = location.pathname === "/cadastro";
   const isLogin = location.pathname === "/login" || location.pathname === "/recuperar-senha";
+
+  const loginHref =
+    isAuthenticated && userType
+      ? userType === "EMPRESA"
+        ? "/empresa"
+        : userType === "FUNCIONARIO"
+          ? "/funcionario"
+          : userType === "ADMIN"
+            ? "/admin"
+            : "/"
+      : "/login";
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -76,7 +89,7 @@ const Navbar = () => {
         <div className="flex items-center gap-2 sm:gap-4 ml-auto shrink-0 min-w-0">
           {isLanding && (
             <Link
-              to="/login"
+              to={loginHref}
               className="shrink-0 text-sm font-medium text-muted-foreground hover:text-primary transition-colors whitespace-nowrap"
             >
               Login

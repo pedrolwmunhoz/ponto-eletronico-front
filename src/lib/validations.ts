@@ -37,10 +37,10 @@ export const REGEX_CNPJ = /^\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}$/;
 export const REGEX_ENDERECO_TEXTO = /^[\p{L}0-9\s\p{P}\p{S}]+$/u;
 /** Complemento: mesmo, mas pode ser vazio | Size(max=255) */
 export const REGEX_COMPLEMENTO = /^[\p{L}0-9\s\p{P}\p{S}]*$/u;
-/** Número do endereço: apenas dígitos | Size(max=20) */
-export const REGEX_NUMERO_ENDERECO = /^[0-9]+$/;
+/** Número do endereço: apenas dígitos, até 9999 (máx. 4 dígitos) */
+export const REGEX_NUMERO_ENDERECO = /^[0-9]{1,4}$/;
 export const MAX_LEN_RUA = 255;
-export const MAX_LEN_NUMERO = 20;
+export const MAX_LEN_NUMERO = 4;
 export const MAX_LEN_COMPLEMENTO = 255;
 export const MAX_LEN_BAIRRO = 255;
 export const MAX_LEN_CIDADE = 255;
@@ -429,7 +429,7 @@ export const FIELD_EXPECTED: Record<string, string> = {
   ultimoNome: "Último nome (mín. 2 e máx. 100 caracteres).",
   rua: "Apenas letras, números, espaços e pontuação (mín. 2 e máx. 255).",
   numero: "Apenas números (mín. 1 e máx. 20).",
-  numeroEndereco: "Apenas números (mín. 1 e máx. 20).",
+  numeroEndereco: "Apenas números (1 a 9999, máx. 4 dígitos).",
   complemento: "Opcional. Letras, números, espaços e pontuação (máx. 255).",
   bairro: "Apenas letras, números, espaços e pontuação (mín. 2 e máx. 255).",
   cidade: "Apenas letras, números, espaços e pontuação (mín. 2 e máx. 255).",
