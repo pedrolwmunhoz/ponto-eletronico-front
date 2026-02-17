@@ -9,6 +9,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Building2, User } from "lucide-react";
@@ -68,7 +69,6 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
   const queryClient = useQueryClient();
   const { getError, getTouched, handleBlur, handleChange, validateAll, clearAll } = useValidation();
   const { estados, getCidadesByUf, loading: loadingEstados } = useEstadosCidades();
-  const cidades = getCidadesByUf(form.uf);
   const [form, setForm] = useState({
     username: data.username ?? "",
     email: data.email ?? "",
@@ -90,6 +90,7 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
     gravarGeolocalizacaoObrigatoria: data.gravarGeolocalizacaoObrigatoria ?? false,
     permitirAjustePontoDireto: data.permitirAjustePontoDireto ?? false,
   });
+  const cidades = getCidadesByUf(form.uf);
 
   useEffect(() => {
     if (open && data) {
