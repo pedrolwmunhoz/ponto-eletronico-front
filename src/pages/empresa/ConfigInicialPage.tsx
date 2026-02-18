@@ -16,9 +16,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { useValidation } from "@/hooks/useValidation";
-import { validateDurationHhmm, validateTimezone, validateTotalDiasVencimento } from "@/lib/validations";
+import { validateDurationHhmm, validateHorario, validateRequiredSelect, validateTimezone, validateTotalDiasVencimento } from "@/lib/validations";
 import { FieldExpectedStatus } from "@/components/ui/field-with-expected";
 import { configInicialEmpresa } from "@/lib/api-empresa";
 import { durationToHHmm, hhmmToDuration } from "@/lib/duration";
@@ -70,9 +71,12 @@ export default function ConfigInicialPage() {
   const mutation = useMutation({
     mutationFn: (body: EmpresaConfigInicialRequest) => {
       const ok = validateAll([
-        ["cargaDiariaPadrao", durationToHHmm(body.empresaJornadaConfig.cargaHorariaDiaria ?? ""), (v) => validateDurationHhmm(v, true)],
-        ["cargaSemanalPadrao", durationToHHmm(body.empresaJornadaConfig.cargaHorariaSemanal ?? ""), (v) => validateDurationHhmm(v, true)],
-        ["intervaloPadrao", durationToHHmm(body.empresaJornadaConfig.intervaloPadrao ?? ""), (v) => validateDurationHhmm(v, true)],
+        ["tipoEscalaJornadaId", String(body.empresaJornadaConfig.tipoEscalaJornadaId ?? ""), (v) => validateRequiredSelect(v, "Tipo de escala jornada é obrigatório.")],
+        ["cargaDiariaPadrao", durationToHHmm(body.empresaJornadaConfig.cargaHorariaDiaria ?? ""), (v) => validateDurationHhmm(v, true, "Carga diária")],
+        ["cargaSemanalPadrao", durationToHHmm(body.empresaJornadaConfig.cargaHorariaSemanal ?? ""), (v) => validateDurationHhmm(v, true, "Carga semanal")],
+        ["intervaloPadrao", durationToHHmm(body.empresaJornadaConfig.intervaloPadrao ?? ""), (v) => validateDurationHhmm(v, true, "Intervalo")],
+        ["entradaPadrao", body.empresaJornadaConfig.entradaPadrao ?? "", (v) => validateHorario(v, true, "Entrada padrão")],
+        ["saidaPadrao", body.empresaJornadaConfig.saidaPadrao ?? "", (v) => validateHorario(v, true, "Saída padrão")],
         ["timezone", body.empresaJornadaConfig.timezone, (v) => validateTimezone(v, true)],
         ["totalDiasVencimento", body.empresaBancoHorasConfig?.totalDiasVencimento ?? 0, validateTotalDiasVencimento],
       ]);
@@ -190,6 +194,7 @@ export default function ConfigInicialPage() {
                       tempoDescansoEntreJornada: defaults.tempoDescansoEntreJornada,
                     }),
                   }));
+                  handleChange("tipoEscalaJornadaId", v ?? "", (x) => validateRequiredSelect(x, "Tipo de escala jornada é obrigatório."));
                 }}
               >
                 <SelectTrigger>
@@ -203,17 +208,18 @@ export default function ConfigInicialPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <FieldExpectedStatus fieldKey="tipoEscalaJornadaId" value={jornada.tipoEscalaJornadaId ? String(jornada.tipoEscalaJornadaId) : ""} error={getError("tipoEscalaJornadaId")} touched={getTouched("tipoEscalaJornadaId")} />
             </div>
             <div className="space-y-2">
-              <Label>Carga diária</Label>
+              <Label required>Carga diária</Label>
               <Input
                 value={durationToHHmm(jornada.cargaHorariaDiaria ?? "")}
                 onChange={(e) => {
                   const v = hhmmToDuration(e.target.value);
                   setJornada((p) => ({ ...p, cargaHorariaDiaria: v }));
-                  handleChange("cargaDiariaPadrao", durationToHHmm(v ?? ""), (x) => validateDurationHhmm(x, true));
+                  handleChange("cargaDiariaPadrao", durationToHHmm(v ?? ""), (x) => validateDurationHhmm(x, true, "Carga diária"));
                 }}
-                onBlur={() => handleBlur("cargaDiariaPadrao", durationToHHmm(jornada.cargaHorariaDiaria ?? ""), (x) => validateDurationHhmm(x, true))}
+                onBlur={() => handleBlur("cargaDiariaPadrao", durationToHHmm(jornada.cargaHorariaDiaria ?? ""), (x) => validateDurationHhmm(x, true, "Carga diária"))}
                 placeholder="08:00"
               />
               <FieldExpectedStatus fieldKey="cargaDiariaPadrao" value={durationToHHmm(jornada.cargaHorariaDiaria ?? "")} error={getError("cargaDiariaPadrao")} touched={getTouched("cargaDiariaPadrao")} />
@@ -227,15 +233,15 @@ export default function ConfigInicialPage() {
                 onChange={(e) => {
                   const v = hhmmToDuration(e.target.value);
                   setJornada((p) => ({ ...p, cargaHorariaSemanal: v }));
-                  handleChange("cargaSemanalPadrao", durationToHHmm(v ?? ""), (x) => validateDurationHhmm(x, true));
+                  handleChange("cargaSemanalPadrao", durationToHHmm(v ?? ""), (x) => validateDurationHhmm(x, true, "Carga semanal"));
                 }}
-                onBlur={() => handleBlur("cargaSemanalPadrao", durationToHHmm(jornada.cargaHorariaSemanal ?? ""), (x) => validateDurationHhmm(x, true))}
+                onBlur={() => handleBlur("cargaSemanalPadrao", durationToHHmm(jornada.cargaHorariaSemanal ?? ""), (x) => validateDurationHhmm(x, true, "Carga semanal"))}
                 placeholder="44:00"
               />
               <FieldExpectedStatus fieldKey="cargaSemanalPadrao" value={durationToHHmm(jornada.cargaHorariaSemanal ?? "")} error={getError("cargaSemanalPadrao")} touched={getTouched("cargaSemanalPadrao")} />
             </div>
             <div className="space-y-2">
-              <Label>Tolerância</Label>
+              <Label required>Tolerância</Label>
               <Input
                 value={durationToHHmm(jornada.toleranciaPadrao ?? "PT0S")}
                 onChange={(e) => {
@@ -257,15 +263,15 @@ export default function ConfigInicialPage() {
                 onChange={(e) => {
                   const v = hhmmToDuration(e.target.value);
                   setJornada((p) => ({ ...p, intervaloPadrao: v }));
-                  handleChange("intervaloPadrao", durationToHHmm(v ?? ""), (x) => validateDurationHhmm(x, true));
+                  handleChange("intervaloPadrao", durationToHHmm(v ?? ""), (x) => validateDurationHhmm(x, true, "Intervalo"));
                 }}
-                onBlur={() => handleBlur("intervaloPadrao", durationToHHmm(jornada.intervaloPadrao ?? ""), (x) => validateDurationHhmm(x, true))}
+                onBlur={() => handleBlur("intervaloPadrao", durationToHHmm(jornada.intervaloPadrao ?? ""), (x) => validateDurationHhmm(x, true, "Intervalo"))}
                 placeholder="01:00"
               />
               <FieldExpectedStatus fieldKey="intervaloPadrao" value={durationToHHmm(jornada.intervaloPadrao ?? "")} error={getError("intervaloPadrao")} touched={getTouched("intervaloPadrao")} />
             </div>
             <div className="space-y-2">
-              <Label>Descanso entre jornadas</Label>
+              <Label>Descanso entre jornadas (opcional)</Label>
               <Input
                 value={durationToHHmm(jornada.tempoDescansoEntreJornada ?? "")}
                 onChange={(e) => setJornada((p) => ({ ...p, tempoDescansoEntreJornada: hhmmToDuration(e.target.value) }))}
@@ -279,20 +285,32 @@ export default function ConfigInicialPage() {
               <Input
                 type="time"
                 value={jornada.entradaPadrao}
-                onChange={(e) => setJornada((p) => ({ ...p, entradaPadrao: e.target.value }))}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setJornada((p) => ({ ...p, entradaPadrao: v }));
+                  handleChange("entradaPadrao", v, (x) => validateHorario(x, true, "Entrada padrão"));
+                }}
+                onBlur={() => handleBlur("entradaPadrao", jornada.entradaPadrao ?? "", (x) => validateHorario(x, true, "Entrada padrão"))}
               />
+              <FieldExpectedStatus fieldKey="entradaPadrao" value={jornada.entradaPadrao ?? ""} error={getError("entradaPadrao")} touched={getTouched("entradaPadrao")} />
             </div>
             <div className="space-y-2">
               <Label required>Saída padrão</Label>
               <Input
                 type="time"
                 value={jornada.saidaPadrao}
-                onChange={(e) => setJornada((p) => ({ ...p, saidaPadrao: e.target.value }))}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setJornada((p) => ({ ...p, saidaPadrao: v }));
+                  handleChange("saidaPadrao", v, (x) => validateHorario(x, true, "Saída padrão"));
+                }}
+                onBlur={() => handleBlur("saidaPadrao", jornada.saidaPadrao ?? "", (x) => validateHorario(x, true, "Saída padrão"))}
               />
+              <FieldExpectedStatus fieldKey="saidaPadrao" value={jornada.saidaPadrao ?? ""} error={getError("saidaPadrao")} touched={getTouched("saidaPadrao")} />
             </div>
           </div>
           <div className="space-y-2">
-            <Label>Timezone</Label>
+            <Label required>Timezone</Label>
             <Input
               value={jornada.timezone}
               onChange={(e) => {
@@ -395,7 +413,7 @@ export default function ConfigInicialPage() {
                   </Button>
                 </div>
                 <div className="grid gap-2">
-                  <Label>Descrição</Label>
+                  <Label required>Descrição</Label>
                   <Input
                     value={g.descricao}
                     onChange={(e) => updateGeofence(i, "descricao", e.target.value)}
@@ -407,7 +425,20 @@ export default function ConfigInicialPage() {
                     checked={g.ativo}
                     onCheckedChange={(c) => updateGeofence(i, "ativo", !!c)}
                   />
-                  <Label>Ativo</Label>
+                  <Label>Ativo (opcional)</Label>
+                </div>
+                <div className="flex items-center gap-1.5 mt-4">
+                  <Label required>Coordenadas</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" title="Quando o navegador pedir permissão, escolha Permitir e marque Lembrar ou Sempre para não perguntar de novo." className="inline-flex text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded p-0.5" aria-label="Ajuda">
+                        <HelpCircle className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-[260px] z-[100]" sideOffset={8}>
+                      Quando o navegador pedir permissão, escolha &quot;Permitir&quot; e marque &quot;Lembrar&quot; ou &quot;Sempre&quot; para não perguntar de novo.
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
@@ -434,14 +465,13 @@ export default function ConfigInicialPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full gap-2 text-base"
+                  className="w-full gap-2 text-sm"
                   onClick={() => puxarLocal(i)}
                   disabled={buscandoLocal === i}
                 >
                   <Locate className="h-4 w-4 text-green-600 shrink-0" />
                   {buscandoLocal === i ? "Buscando..." : "Usar minha localização atual"}
                 </Button>
-                <p className="text-xs text-muted-foreground">Quando o navegador pedir permissão, escolha &quot;Permitir&quot; e marque &quot;Lembrar&quot; ou &quot;Sempre&quot; para não perguntar de novo.</p>
                 <div className="grid gap-2 max-w-[120px]">
                   <Label>Raio (m)</Label>
                   <Input

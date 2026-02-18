@@ -155,10 +155,10 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
         ["cidade", form.cidade, (v) => validateCidade(v, true)],
         ["uf", form.uf, (v) => validateUf(v, true)],
         ["cep", form.cep, (v) => validateCep(v, true)],
-        ["cargaDiariaPadrao", durationToHHmm(form.cargaDiariaPadrao ?? ""), (v) => validateDurationHhmm(v, true)],
-        ["cargaSemanalPadrao", durationToHHmm(form.cargaSemanalPadrao ?? ""), (v) => validateDurationHhmm(v, true)],
-        ["toleranciaPadrao", durationToHHmm(form.toleranciaPadrao ?? "PT0S"), (v) => validateDurationHhmm(v, true)],
-        ["intervaloPadrao", durationToHHmm(form.intervaloPadrao ?? ""), (v) => validateDurationHhmm(v, true)],
+        ["cargaDiariaPadrao", durationToHHmm(form.cargaDiariaPadrao ?? ""), (v) => validateDurationHhmm(v, true, "Carga diária")],
+        ["cargaSemanalPadrao", durationToHHmm(form.cargaSemanalPadrao ?? ""), (v) => validateDurationHhmm(v, true, "Carga semanal")],
+        ["toleranciaPadrao", durationToHHmm(form.toleranciaPadrao ?? "PT0S"), (v) => validateDurationHhmm(v, true, "Tolerância")],
+        ["intervaloPadrao", durationToHHmm(form.intervaloPadrao ?? ""), (v) => validateDurationHhmm(v, true, "Intervalo")],
         ["timezone", form.timezone, (v) => validateTimezone(v, true)],
       ]);
       if (!ok) {
@@ -186,6 +186,7 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
         const hasNewTelefone = !!(form.codigoPais?.trim() && form.ddd?.trim() && form.numero?.trim());
         if (hadTelefone && data.telefoneId) tasks.push(() => removerTelefone(data.telefoneId!));
         if (hasNewTelefone) {
+          // Telefone: enviar sem máscara (só dígitos).
           tasks.push(() =>
             adicionarTelefone({
               codigoPais: form.codigoPais.replace(/\D/g, "").trim(),
@@ -204,6 +205,7 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
         form.uf !== (data.uf ?? "").toUpperCase() ||
         form.cep !== (data.cep ?? "");
       if (enderecoChanged && form.rua?.trim() && form.numeroEndereco?.trim() && form.bairro?.trim() && form.cidade?.trim() && form.uf?.length === 2 && form.cep?.replace(/\D/g, "").length === 8) {
+        // Endereço: rua/bairro/cidade/complemento com formatação; número e CEP sem máscara (só dígitos).
         tasks.push(() =>
           atualizarEnderecoEmpresa({
             rua: form.rua.trim(),
@@ -260,7 +262,7 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[620px] h-[min(680px,92vh)] max-h-[92vh] flex flex-col overflow-hidden">
+      <DialogContent className="max-w-[620px] w-[95vw] h-[min(680px,92vh)] max-h-[92vh] flex flex-col overflow-hidden p-6">
         <DialogHeader className="shrink-0">
           <DialogTitle>Perfil da empresa</DialogTitle>
         </DialogHeader>
@@ -274,14 +276,15 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
           </div>
         </div>
         <Tabs defaultValue="fiscal" className="flex flex-col flex-1 min-h-0">
-          <TabsList className="mb-4 flex flex-wrap gap-1 shrink-0">
+          <TabsList className="mb-4 flex flex-wrap gap-1 shrink-0 justify-center">
             <TabsTrigger value="fiscal">Empresa</TabsTrigger>
             <TabsTrigger value="telefone">Telefone</TabsTrigger>
             <TabsTrigger value="endereco">Endereço</TabsTrigger>
             <TabsTrigger value="jornada">Jornada Padrão</TabsTrigger>
             <TabsTrigger value="compliance">Compliance</TabsTrigger>
           </TabsList>
-          <TabsContent value="fiscal" className="min-h-[280px] overflow-y-auto data-[state=inactive]:hidden">
+          <div className="max-w-xl flex-1 min-h-0 flex flex-col">
+          <TabsContent value="fiscal" className="min-h-[280px] overflow-y-auto overflow-x-hidden data-[state=inactive]:hidden px-1 py-0.5">
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -318,7 +321,7 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
               </div>
             </div>
           </TabsContent>
-          <TabsContent value="telefone" className="min-h-[280px] overflow-y-auto data-[state=inactive]:hidden">
+          <TabsContent value="telefone" className="min-h-[280px] overflow-y-auto overflow-x-hidden data-[state=inactive]:hidden px-1 py-0.5">
             <div className="space-y-4">
               <div className="grid grid-cols-4 gap-4">
                 <div>
@@ -388,7 +391,7 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
                 </div>
               </div>
               <div>
-                <Label className="text-sm font-medium">Complemento</Label>
+                <Label className="text-sm font-medium">Complemento (opcional)</Label>
                 <Input
                   value={form.complemento}
                   onChange={(e) => { const formatted = formatTitleCase(e.target.value); setForm((p) => ({ ...p, complemento: formatted })); handleChange("complemento", formatted, validateComplemento); }}
@@ -453,7 +456,7 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
                   <FieldExpectedStatus fieldKey="cep" value={form.cep} error={getError("cep")} touched={getTouched("cep")} />
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Timezone</Label>
+                  <Label className="text-sm font-medium" required>Timezone</Label>
                   <Input
                     value={form.timezone}
                     onChange={(e) => { setForm((p) => ({ ...p, timezone: e.target.value })); handleChange("timezone", e.target.value, (v) => validateTimezone(v, true)); }}
@@ -466,14 +469,14 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
               </div>
             </div>
           </TabsContent>
-          <TabsContent value="jornada" className="min-h-[280px] overflow-y-auto data-[state=inactive]:hidden">
+          <TabsContent value="jornada" className="min-h-[280px] overflow-y-auto overflow-x-hidden data-[state=inactive]:hidden px-1 py-0.5">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label className="text-sm font-medium" required>Carga Diária Padrão</Label>
                 <Input
                   value={durationToHHmm(form.cargaDiariaPadrao ?? "")}
-                  onChange={(e) => { const v = e.target.value; setForm((p) => ({ ...p, cargaDiariaPadrao: hhmmToDuration(v) })); handleChange("cargaDiariaPadrao", v, (x) => validateDurationHhmm(x, true)); }}
-                  onBlur={() => handleBlur("cargaDiariaPadrao", durationToHHmm(form.cargaDiariaPadrao ?? ""), (v) => validateDurationHhmm(v, true))}
+                  onChange={(e) => { const v = e.target.value; setForm((p) => ({ ...p, cargaDiariaPadrao: hhmmToDuration(v) })); handleChange("cargaDiariaPadrao", v, (x) => validateDurationHhmm(x, true, "Carga diária")); }}
+                  onBlur={() => handleBlur("cargaDiariaPadrao", durationToHHmm(form.cargaDiariaPadrao ?? ""), (v) => validateDurationHhmm(v, true, "Carga diária"))}
                   placeholder="08:00"
                   className="mt-1"
                   aria-invalid={!!getError("cargaDiariaPadrao")}
@@ -484,8 +487,8 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
                 <Label className="text-sm font-medium" required>Carga Semanal Padrão</Label>
                 <Input
                   value={durationToHHmm(form.cargaSemanalPadrao ?? "")}
-                  onChange={(e) => { const v = e.target.value; setForm((p) => ({ ...p, cargaSemanalPadrao: hhmmToDuration(v) })); handleChange("cargaSemanalPadrao", v, (x) => validateDurationHhmm(x, true)); }}
-                  onBlur={() => handleBlur("cargaSemanalPadrao", durationToHHmm(form.cargaSemanalPadrao ?? ""), (v) => validateDurationHhmm(v, true))}
+                  onChange={(e) => { const v = e.target.value; setForm((p) => ({ ...p, cargaSemanalPadrao: hhmmToDuration(v) })); handleChange("cargaSemanalPadrao", v, (x) => validateDurationHhmm(x, true, "Carga semanal")); }}
+                  onBlur={() => handleBlur("cargaSemanalPadrao", durationToHHmm(form.cargaSemanalPadrao ?? ""), (v) => validateDurationHhmm(v, true, "Carga semanal"))}
                   placeholder="44:00"
                   className="mt-1"
                   aria-invalid={!!getError("cargaSemanalPadrao")}
@@ -508,8 +511,8 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
                 <Label className="text-sm font-medium" required>Intervalo Padrão</Label>
                 <Input
                   value={durationToHHmm(form.intervaloPadrao ?? "")}
-                  onChange={(e) => { const v = e.target.value; setForm((p) => ({ ...p, intervaloPadrao: hhmmToDuration(v) })); handleChange("intervaloPadrao", v, (x) => validateDurationHhmm(x, true)); }}
-                  onBlur={() => handleBlur("intervaloPadrao", durationToHHmm(form.intervaloPadrao ?? ""), (v) => validateDurationHhmm(v, true))}
+                  onChange={(e) => { const v = e.target.value; setForm((p) => ({ ...p, intervaloPadrao: hhmmToDuration(v) })); handleChange("intervaloPadrao", v, (x) => validateDurationHhmm(x, true, "Intervalo")); }}
+                  onBlur={() => handleBlur("intervaloPadrao", durationToHHmm(form.intervaloPadrao ?? ""), (v) => validateDurationHhmm(v, true, "Intervalo"))}
                   placeholder="01:00"
                   className="mt-1"
                   aria-invalid={!!getError("intervaloPadrao")}
@@ -562,6 +565,7 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
               </div>
             </div>
           </TabsContent>
+          </div>
         </Tabs>
         <div className="mt-6 pt-4 border-t">
           <p className="text-xs text-muted-foreground mb-2">Campos com * são obrigatórios.</p>
@@ -627,7 +631,7 @@ export function ModalPerfil({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[620px] h-[min(680px,90vh)] max-h-[90vh] flex flex-col overflow-hidden">
+      <DialogContent className="max-w-[620px] w-[95vw] h-[min(680px,90vh)] max-h-[90vh] flex flex-col overflow-hidden p-6">
         <DialogHeader className="shrink-0">
           <DialogTitle>Meu perfil</DialogTitle>
         </DialogHeader>
@@ -645,14 +649,14 @@ export function ModalPerfil({
           </div>
         </div>
         <Tabs defaultValue="dados" className="flex flex-col flex-1 min-h-0">
-          <TabsList className="mb-4 flex flex-wrap gap-1 shrink-0">
+          <TabsList className="mb-4 flex flex-wrap gap-1 shrink-0 justify-center">
             <TabsTrigger value="dados">Dados Pessoais</TabsTrigger>
             <TabsTrigger value="telefone">Telefone</TabsTrigger>
             <TabsTrigger value="contrato">Contrato</TabsTrigger>
             <TabsTrigger value="jornada">Jornada</TabsTrigger>
             <TabsTrigger value="ponto">Controle Ponto</TabsTrigger>
           </TabsList>
-          <TabsContent value="dados" className="min-h-[280px] overflow-y-auto data-[state=inactive]:hidden">
+          <TabsContent value="dados" className="min-h-[280px] overflow-y-auto overflow-x-hidden data-[state=inactive]:hidden px-1 py-0.5">
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <Checkbox
@@ -715,7 +719,7 @@ export function ModalPerfil({
               </div>
             </div>
           </TabsContent>
-          <TabsContent value="telefone" className="min-h-[280px] overflow-y-auto data-[state=inactive]:hidden">
+          <TabsContent value="telefone" className="min-h-[280px] overflow-y-auto overflow-x-hidden data-[state=inactive]:hidden px-1 py-0.5">
             <div className="space-y-4">
               <div className="grid grid-cols-4 gap-4">
                 <div>
@@ -830,7 +834,7 @@ export function ModalPerfil({
               )}
             </div>
           </TabsContent>
-          <TabsContent value="jornada" className="min-h-[280px] overflow-y-auto data-[state=inactive]:hidden">
+          <TabsContent value="jornada" className="min-h-[280px] overflow-y-auto overflow-x-hidden data-[state=inactive]:hidden px-1 py-0.5">
             <div className="space-y-4">
               {jornada ? (
                 <div className="grid grid-cols-2 gap-4">
@@ -903,7 +907,7 @@ export function ModalPerfil({
               )}
             </div>
           </TabsContent>
-          <TabsContent value="ponto" className="min-h-[280px] overflow-y-auto data-[state=inactive]:hidden">
+          <TabsContent value="ponto" className="min-h-[280px] overflow-y-auto overflow-x-hidden data-[state=inactive]:hidden px-1 py-0.5">
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 Configurações de controle de ponto são definidas pela empresa. A tolerância e

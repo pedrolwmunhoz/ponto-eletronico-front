@@ -185,7 +185,12 @@ export default function FeriadosPage() {
   };
 
   const handleCriar = () => {
-    if (!validateAll(validadoresCriarEditar)) {
+    const ok = validateAll([
+      ["data", data, validadoresCriarEditar.data],
+      ["descricao", descricao, validadoresCriarEditar.descricao],
+      ["tipoFeriadoId", tipoFeriadoId, validadoresCriarEditar.tipoFeriadoId],
+    ]);
+    if (!ok) {
       toast({ variant: "destructive", title: "Corrija os campos antes de criar." });
       return;
     }
@@ -195,7 +200,12 @@ export default function FeriadosPage() {
 
   const handleEditar = () => {
     if (!editarTarget) return;
-    if (!validateAll(validadoresCriarEditar)) {
+    const ok = validateAll([
+      ["data", data, validadoresCriarEditar.data],
+      ["descricao", descricao, validadoresCriarEditar.descricao],
+      ["tipoFeriadoId", tipoFeriadoId, validadoresCriarEditar.tipoFeriadoId],
+    ]);
+    if (!ok) {
       toast({ variant: "destructive", title: "Corrija os campos antes de salvar." });
       return;
     }
@@ -257,7 +267,7 @@ export default function FeriadosPage() {
                 <FieldExpectedStatus fieldKey="data" value={data} error={getError("data")} touched={getTouched("data")} />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="criar-descricao" required>Descrição</Label>
+                <Label htmlFor="criar-descricao" required>Nome feriado</Label>
                 <Input
                   id="criar-descricao"
                   value={descricao}
@@ -294,7 +304,7 @@ export default function FeriadosPage() {
                   checked={ativo}
                   onCheckedChange={(c) => setAtivo(!!c)}
                 />
-                <Label htmlFor="criar-ativo" className="font-normal cursor-pointer">Ativo</Label>
+                <Label htmlFor="criar-ativo" className="font-normal cursor-pointer">Ativo (opcional)</Label>
               </div>
             </div>
             <DialogFooter>
@@ -343,7 +353,7 @@ export default function FeriadosPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Data</TableHead>
-                    <TableHead>Descrição</TableHead>
+                    <TableHead>Nome feriado</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
@@ -509,7 +519,7 @@ export default function FeriadosPage() {
                 checked={ativo}
                 onCheckedChange={(c) => setAtivo(!!c)}
               />
-              <Label htmlFor="edit-ativo" className="font-normal cursor-pointer">Ativo</Label>
+              <Label htmlFor="edit-ativo" className="font-normal cursor-pointer">Ativo (opcional)</Label>
             </div>
           </div>
           <DialogFooter>

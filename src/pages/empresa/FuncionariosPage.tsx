@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import { Users, Search, Plus, Trash2, MoreVertical, Pencil, Key, Mail, Unlock } from "lucide-react";
+import { Users, Search, Plus, Trash2, MoreVertical, Pencil, Key, Mail, Unlock, PencilLine, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,7 +59,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useValidation } from "@/hooks/useValidation";
-import { formatCpf, formatTelefoneNumero, formatTitleCase, maskCpfInput, maskDddInput, maskNumeroTelefoneInput } from "@/lib/format";
+import { formatCpf, formatSalarioDisplay, formatTelefoneNumero, formatTitleCase, maskCpfInput, maskDddInput, maskNumeroTelefoneInput, maskPisPasepInput } from "@/lib/format";
+import type { ValidationResult } from "@/lib/validations";
 import {
   validateUsername,
   validateEmail,
@@ -69,6 +70,14 @@ import {
   validateUltimoNome,
   validateSenha,
   validateCargo,
+  validateCodigoPais,
+  validateDdd,
+  validateNumeroTelefone,
+  validateDataAdmissao,
+  validateSalarioObrigatorio,
+  validateDurationHhmm,
+  validateHorario,
+  validateRequiredSelect,
 } from "@/lib/validations";
 import { FieldExpectedStatus } from "@/components/ui/field-with-expected";
 import {
@@ -111,13 +120,14 @@ const emptyForm = (): FuncionarioCreateRequest => ({
   geofenceIds: null,
 });
 
-/** Auto-completa primeiro, último e username a partir do nome completo (só no front). */
+/** Auto-completa primeiro, último e username a partir do nome completo. Só preenche sobrenome e ".sobrenome" no usuário quando houver mais de um nome. */
 function fillFromNomeCompleto(nomeCompleto: string): { primeiroNome: string; ultimoNome: string; username: string } {
   const t = nomeCompleto.trim();
   if (!t) return { primeiroNome: "", ultimoNome: "", username: "" };
   const parts = t.split(/\s+/).filter(Boolean);
   const primeiro = parts[0] ?? "";
-  const ultimo = parts.length > 1 ? (parts[parts.length - 1] ?? "") : primeiro;
+  if (parts.length === 1) return { primeiroNome: primeiro, ultimoNome: "", username: primeiro.toLowerCase() };
+  const ultimo = parts[parts.length - 1] ?? "";
   const username = [primeiro, ultimo].filter(Boolean).map((s) => s.toLowerCase()).join(".");
   return { primeiroNome: primeiro, ultimoNome: ultimo, username };
 }
@@ -172,6 +182,26 @@ export default function FuncionariosPage() {
   const [emailNovo, setEmailNovo] = useState("");
   const [resetSenhaTarget, setResetSenhaTarget] = useState<FuncionarioListagemResponse | null>(null);
   const [resetEmailTarget, setResetEmailTarget] = useState<FuncionarioListagemResponse | null>(null);
+  const [salarioMensalInput, setSalarioMensalInput] = useState("");
+  const [salarioHoraInput, setSalarioHoraInput] = useState("");
+  const [editPrimeiroNome, setEditPrimeiroNome] = useState(false);
+  const [editUltimoNome, setEditUltimoNome] = useState(false);
+  const [editUsername, setEditUsername] = useState(false);
+  const refPrimeiroNome = useRef<HTMLDivElement>(null);
+  const refUltimoNome = useRef<HTMLDivElement>(null);
+  const refUsername = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (formOpen === null) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (editPrimeiroNome && refPrimeiroNome.current && !refPrimeiroNome.current.contains(t)) setEditPrimeiroNome(false);
+      if (editUltimoNome && refUltimoNome.current && !refUltimoNome.current.contains(t)) setEditUltimoNome(false);
+      if (editUsername && refUsername.current && !refUsername.current.contains(t)) setEditUsername(false);
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [formOpen, editPrimeiroNome, editUltimoNome, editUsername]);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["empresa", "funcionarios", page, pageSize, nome],
@@ -315,7 +345,17 @@ export default function FuncionariosPage() {
     setAtivarGeofences(false);
     setEditTarget(null);
     setFormOpen("create");
+    setSalarioMensalInput("");
+    setSalarioHoraInput("");
+    setEditPrimeiroNome(false);
+    setEditUltimoNome(false);
+    setEditUsername(false);
   };
+
+  /** Usuário digita só números; últimos 2 = centavos. Converte para decimal e guarda no form. Ex: "150050" -> 1500.50 */
+  const salarioFromDigits = (digits: string) => (digits ? Math.round(parseInt(digits.replace(/\D/g, ""), 10) || 0) / 100 : 0);
+  /** Para exibir no input ao carregar: decimal do form vira string de dígitos. Ex: 1500.50 -> "150050" */
+  const digitsFromSalario = (n: number) => (n != null && !Number.isNaN(n) && n > 0 ? String(Math.round(n * 100)) : "");
 
   const openEdit = async (f: FuncionarioListagemResponse) => {
     setEditTarget(f);
@@ -338,7 +378,12 @@ export default function FuncionariosPage() {
         email: p.email ?? "",
         senha: "",
         usuarioTelefone: p.usuarioTelefone ?? null,
-        contratoFuncionario: p.contratoFuncionario ?? emptyContrato(),
+        contratoFuncionario: p.contratoFuncionario
+          ? {
+              ...p.contratoFuncionario,
+              pisPasep: p.contratoFuncionario.pisPasep ? maskPisPasepInput(p.contratoFuncionario.pisPasep) : null,
+            }
+          : emptyContrato(),
         jornadaFuncionarioConfig: j
           ? {
               tipoEscalaJornadaId: j.tipoEscalaJornadaId ?? 0,
@@ -352,8 +397,15 @@ export default function FuncionariosPage() {
               gravaGeoObrigatoria: j.gravaGeoObrigatoria ?? false,
             }
           : emptyJornada(),
-        geofenceIds: [],
+        geofenceIds: p.geofenceIds ?? [],
       });
+      const salM = p.contratoFuncionario?.salarioMensal;
+      const salH = p.contratoFuncionario?.salarioHora;
+      setSalarioMensalInput(digitsFromSalario(salM ?? 0));
+      setSalarioHoraInput(digitsFromSalario(salH ?? 0));
+      setEditPrimeiroNome(false);
+      setEditUltimoNome(false);
+      setEditUsername(false);
     } catch (err: unknown) {
       toast({
         variant: "destructive",
@@ -364,6 +416,7 @@ export default function FuncionariosPage() {
     }
   };
 
+  /** Telefone: enviar à API sem máscara (só dígitos). Nome e texto ficam com formatação. */
   const buildTelefone = () => {
     if (!ativarTelefone) return null;
     const t = form.usuarioTelefone;
@@ -375,13 +428,14 @@ export default function FuncionariosPage() {
     };
   };
 
+  /** Contrato: cargo/departamento com formatação (texto). PIS/PASEP sem máscara (só dígitos). */
   const buildContrato = (): ContratoFuncionarioRequest | null => {
     if (!ativarContrato) return null;
     const c = form.contratoFuncionario;
     if (!c || !c.cargo?.trim() || !c.tipoContratoId || !c.dataAdmissao?.trim() || c.salarioMensal == null || c.salarioHora == null) return null;
     return {
       matricula: c.matricula?.trim() || null,
-      pisPasep: c.pisPasep?.trim() || null,
+      pisPasep: c.pisPasep?.replace(/\D/g, "").trim() || null,
       cargo: c.cargo.trim(),
       departamento: c.departamento?.trim() || null,
       tipoContratoId: c.tipoContratoId,
@@ -410,16 +464,43 @@ export default function FuncionariosPage() {
     };
   };
 
+  type ValidateEntry = [string, unknown, (v: unknown) => ValidationResult];
+
   const handleSubmitCreate = () => {
     const ok = validateAll([
-      ["nomeCompleto", form.nomeCompleto ?? "", (v) => validateNomeCompleto(v, true)],
-      ["primeiroNome", form.primeiroNome ?? "", (v) => validatePrimeiroNome(v, true)],
-      ["ultimoNome", form.ultimoNome ?? "", (v) => validateUltimoNome(v, true)],
-      ["username", form.username ?? "", (v) => validateUsername(v, true)],
-      ["cpf", form.cpf ?? "", (v) => validateCpf(v, true)],
-      ["email", form.email ?? "", (v) => validateEmail(v, true)],
-      ["senha", form.senha ?? "", (v) => validateSenha(v, true)],
-      ...(ativarContrato ? [["cargo", form.contratoFuncionario?.cargo ?? "", (v: string) => validateCargo(v, true)]] : []),
+      ["nomeCompleto", form.nomeCompleto ?? "", (v: unknown) => validateNomeCompleto(v as string, true)],
+      ["primeiroNome", form.primeiroNome ?? "", (v: unknown) => validatePrimeiroNome(v as string, true)],
+      ["ultimoNome", form.ultimoNome ?? "", (v: unknown) => validateUltimoNome(v as string, true)],
+      ["username", form.username ?? "", (v: unknown) => validateUsername(v as string, true)],
+      ["cpf", form.cpf ?? "", (v: unknown) => validateCpf(v as string, true)],
+      ["email", form.email ?? "", (v: unknown) => validateEmail(v as string, true)],
+      ["senha", form.senha ?? "", (v: unknown) => validateSenha(v as string, true)],
+      ...(ativarTelefone
+        ? ([
+            ["codigoPais", form.usuarioTelefone?.codigoPais ?? "", (v: unknown) => validateCodigoPais(v as string, true)],
+            ["ddd", form.usuarioTelefone?.ddd ?? "", (v: unknown) => validateDdd(v as string, true)],
+            ["numero", form.usuarioTelefone?.numero ?? "", (v: unknown) => validateNumeroTelefone(v as string, true)],
+          ] as ValidateEntry[])
+        : []),
+      ...(ativarContrato && form.contratoFuncionario
+        ? ([
+            ["cargo", form.contratoFuncionario.cargo ?? "", (v: unknown) => validateCargo(v as string, true)],
+            ["tipoContratoId", form.contratoFuncionario.tipoContratoId ? String(form.contratoFuncionario.tipoContratoId) : "", (v: unknown) => validateRequiredSelect(v as string, "Tipo de contrato é obrigatório.")],
+            ["dataAdmissao", form.contratoFuncionario.dataAdmissao ?? "", (v: unknown) => validateDataAdmissao(v as string, true)],
+            ["salarioMensal", form.contratoFuncionario.salarioMensal ?? 0, (v: unknown) => validateSalarioObrigatorio(v as number, "Salário mensal")],
+            ["salarioHora", form.contratoFuncionario.salarioHora ?? 0, (v: unknown) => validateSalarioObrigatorio(v as number, "Salário hora")],
+          ] as ValidateEntry[])
+        : []),
+      ...(ativarJornada && form.jornadaFuncionarioConfig
+        ? ([
+            ["tipoEscalaJornadaId", form.jornadaFuncionarioConfig.tipoEscalaJornadaId ? String(form.jornadaFuncionarioConfig.tipoEscalaJornadaId) : "", (v: unknown) => validateRequiredSelect(v as string, "Tipo de escala jornada é obrigatório.")],
+            ["cargaHorariaDiaria", durationToHHmm(form.jornadaFuncionarioConfig.cargaHorariaDiaria ?? ""), (v: unknown) => validateDurationHhmm(v as string, true, "Carga diária")],
+            ["cargaHorariaSemanal", durationToHHmm(form.jornadaFuncionarioConfig.cargaHorariaSemanal ?? ""), (v: unknown) => validateDurationHhmm(v as string, true, "Carga semanal")],
+            ["intervaloPadrao", durationToHHmm(form.jornadaFuncionarioConfig.intervaloPadrao ?? ""), (v: unknown) => validateDurationHhmm(v as string, true, "Intervalo")],
+            ["entradaPadrao", form.jornadaFuncionarioConfig.entradaPadrao ?? "", (v: unknown) => validateHorario(v as string, true, "Entrada padrão")],
+            ["saidaPadrao", form.jornadaFuncionarioConfig.saidaPadrao ?? "", (v: unknown) => validateHorario(v as string, true, "Saída padrão")],
+          ] as ValidateEntry[])
+        : []),
     ]);
     if (!ok) {
       toast({ variant: "destructive", title: "Corrija os erros antes de salvar." });
@@ -430,7 +511,7 @@ export default function FuncionariosPage() {
       nomeCompleto: form.nomeCompleto.trim(),
       primeiroNome: form.primeiroNome.trim(),
       ultimoNome: form.ultimoNome.trim(),
-      cpf: form.cpf.trim(),
+      cpf: form.cpf.replace(/\D/g, "").trim(),
       dataNascimento: form.dataNascimento ?? null,
       email: form.email.trim(),
       senha: form.senha,
@@ -445,12 +526,38 @@ export default function FuncionariosPage() {
   const handleSubmitEdit = () => {
     if (!editTarget) return;
     const ok = validateAll([
-      ["nomeCompleto", form.nomeCompleto ?? "", (v) => validateNomeCompleto(v, true)],
-      ["primeiroNome", form.primeiroNome ?? "", (v) => validatePrimeiroNome(v, true)],
-      ["ultimoNome", form.ultimoNome ?? "", (v) => validateUltimoNome(v, true)],
-      ["username", form.username ?? "", (v) => validateUsername(v, true)],
-      ["cpf", form.cpf ?? "", (v) => validateCpf(v, true)],
-      ["email", form.email ?? "", (v) => validateEmail(v, true)],
+      ["nomeCompleto", form.nomeCompleto ?? "", (v: unknown) => validateNomeCompleto(v as string, true)],
+      ["primeiroNome", form.primeiroNome ?? "", (v: unknown) => validatePrimeiroNome(v as string, true)],
+      ["ultimoNome", form.ultimoNome ?? "", (v: unknown) => validateUltimoNome(v as string, true)],
+      ["username", form.username ?? "", (v: unknown) => validateUsername(v as string, true)],
+      ["cpf", form.cpf ?? "", (v: unknown) => validateCpf(v as string, true)],
+      ["email", form.email ?? "", (v: unknown) => validateEmail(v as string, true)],
+      ...(ativarTelefone
+        ? ([
+            ["codigoPais", form.usuarioTelefone?.codigoPais ?? "", (v: unknown) => validateCodigoPais(v as string, true)],
+            ["ddd", form.usuarioTelefone?.ddd ?? "", (v: unknown) => validateDdd(v as string, true)],
+            ["numero", form.usuarioTelefone?.numero ?? "", (v: unknown) => validateNumeroTelefone(v as string, true)],
+          ] as ValidateEntry[])
+        : []),
+      ...(ativarContrato && form.contratoFuncionario
+        ? ([
+            ["cargo", form.contratoFuncionario.cargo ?? "", (v: unknown) => validateCargo(v as string, true)],
+            ["tipoContratoId", form.contratoFuncionario.tipoContratoId ? String(form.contratoFuncionario.tipoContratoId) : "", (v: unknown) => validateRequiredSelect(v as string, "Tipo de contrato é obrigatório.")],
+            ["dataAdmissao", form.contratoFuncionario.dataAdmissao ?? "", (v: unknown) => validateDataAdmissao(v as string, true)],
+            ["salarioMensal", form.contratoFuncionario.salarioMensal ?? 0, (v: unknown) => validateSalarioObrigatorio(v as number, "Salário mensal")],
+            ["salarioHora", form.contratoFuncionario.salarioHora ?? 0, (v: unknown) => validateSalarioObrigatorio(v as number, "Salário hora")],
+          ] as ValidateEntry[])
+        : []),
+      ...(ativarJornada && form.jornadaFuncionarioConfig
+        ? ([
+            ["tipoEscalaJornadaId", form.jornadaFuncionarioConfig.tipoEscalaJornadaId ? String(form.jornadaFuncionarioConfig.tipoEscalaJornadaId) : "", (v: unknown) => validateRequiredSelect(v as string, "Tipo de escala jornada é obrigatório.")],
+            ["cargaHorariaDiaria", durationToHHmm(form.jornadaFuncionarioConfig.cargaHorariaDiaria ?? ""), (v: unknown) => validateDurationHhmm(v as string, true, "Carga diária")],
+            ["cargaHorariaSemanal", durationToHHmm(form.jornadaFuncionarioConfig.cargaHorariaSemanal ?? ""), (v: unknown) => validateDurationHhmm(v as string, true, "Carga semanal")],
+            ["intervaloPadrao", durationToHHmm(form.jornadaFuncionarioConfig.intervaloPadrao ?? ""), (v: unknown) => validateDurationHhmm(v as string, true, "Intervalo")],
+            ["entradaPadrao", form.jornadaFuncionarioConfig.entradaPadrao ?? "", (v: unknown) => validateHorario(v as string, true, "Entrada padrão")],
+            ["saidaPadrao", form.jornadaFuncionarioConfig.saidaPadrao ?? "", (v: unknown) => validateHorario(v as string, true, "Saída padrão")],
+          ] as ValidateEntry[])
+        : []),
     ]);
     if (!ok) {
       toast({ variant: "destructive", title: "Corrija os erros antes de salvar." });
@@ -666,8 +773,9 @@ export default function FuncionariosPage() {
           <DialogHeader className="flex-shrink-0 pb-1 sm:pb-2">
             <DialogTitle className="text-base sm:text-lg">{formOpen === "create" ? "Novo funcionário" : "Editar funcionário"}</DialogTitle>
           </DialogHeader>
+          <div className="max-w-2xl w-full mx-auto flex flex-col flex-1 min-h-0">
           <Tabs defaultValue="dados" className="w-full flex flex-col flex-1 min-h-0">
-            <TabsList className="flex flex-wrap gap-0.5 flex-shrink-0 mb-3 h-auto p-0.5 sm:gap-1 sm:mb-6">
+            <TabsList className="flex flex-wrap gap-0.5 flex-shrink-0 mb-3 h-auto p-0.5 sm:gap-1 sm:mb-6 justify-center">
               <TabsTrigger value="dados" className="gap-1 text-xs px-2 py-1.5 sm:gap-1.5 sm:px-3 sm:py-2 sm:text-sm">
                 Dados <Badge className="text-[9px] px-1 py-0 font-normal border-0 bg-blue-100 text-blue-800 sm:text-[10px] sm:px-1.5">Obrigatório</Badge>
               </TabsTrigger>
@@ -684,24 +792,24 @@ export default function FuncionariosPage() {
                 Áreas <Badge className="text-[9px] px-1 py-0 font-normal border-0 bg-amber-100 text-amber-800 sm:text-[10px] sm:px-1.5">Opcional</Badge>
               </TabsTrigger>
             </TabsList>
-            <TabsContent value="dados" className="space-y-3 pt-2 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden sm:space-y-4 sm:pt-4">
+            <TabsContent value="dados" className="space-y-3 pt-2 flex-1 min-h-0 overflow-y-auto overflow-x-hidden data-[state=inactive]:hidden sm:space-y-4 sm:pt-4 px-1 py-0.5">
               <div className="space-y-1.5 sm:space-y-2">
                 <Label required className="text-xs sm:text-sm">Nome completo</Label>
                 <Input
                   value={form.nomeCompleto}
                   onChange={(e) => {
-                    const v = e.target.value;
-                    const filled = fillFromNomeCompleto(v);
+                    const formatted = formatTitleCase(e.target.value);
+                    const filled = fillFromNomeCompleto(formatted);
                     setForm((prev) => ({
                       ...prev,
-                      nomeCompleto: v,
+                      nomeCompleto: formatted,
                       primeiroNome: filled.primeiroNome,
                       ultimoNome: filled.ultimoNome,
                       username: filled.username,
                     }));
-                    handleChange("nomeCompleto", v, (x) => validateNomeCompleto(x, true));
+                    handleChange("nomeCompleto", formatted, (x) => validateNomeCompleto(x, true));
                   }}
-                  onBlur={() => { const formatted = formatTitleCase(form.nomeCompleto ?? ""); setForm((prev) => ({ ...prev, nomeCompleto: formatted, ...(formatted ? fillFromNomeCompleto(formatted) : {}) })); handleBlur("nomeCompleto", formatted, (x) => validateNomeCompleto(x, true)); }}
+                  onBlur={() => handleBlur("nomeCompleto", form.nomeCompleto ?? "", (x) => validateNomeCompleto(x, true))}
                   placeholder="Ex: João Pedro da Silva"
                 />
                 <FieldExpectedStatus fieldKey="nomeCompleto" value={form.nomeCompleto ?? ""} error={getError("nomeCompleto")} touched={getTouched("nomeCompleto")} />
@@ -709,51 +817,97 @@ export default function FuncionariosPage() {
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-1.5 sm:space-y-2">
                   <Label required className="text-xs sm:text-sm">Primeiro nome</Label>
-                  <Input
-                    value={form.primeiroNome}
-                    onChange={(e) => {
-                      const formatted = formatTitleCase(e.target.value);
-                      setForm((prev) => ({ ...prev, primeiroNome: formatted }));
-                      handleChange("primeiroNome", formatted, (x) => validatePrimeiroNome(x, true));
-                    }}
-                    onBlur={() => handleBlur("primeiroNome", form.primeiroNome ?? "", (x) => validatePrimeiroNome(x, true))}
-                    placeholder="Ex: João"
-                    className="h-9 text-sm sm:h-10 sm:text-base"
-                  />
+                  <div ref={refPrimeiroNome} className="relative">
+                    <Input
+                      value={form.primeiroNome}
+                      disabled={!editPrimeiroNome}
+                      onChange={(e) => {
+                        const formatted = formatTitleCase(e.target.value);
+                        setForm((prev) => ({ ...prev, primeiroNome: formatted }));
+                        handleChange("primeiroNome", formatted, (x) => validatePrimeiroNome(x, true));
+                      }}
+                      onBlur={() => {
+                        handleBlur("primeiroNome", form.primeiroNome ?? "", (x) => validatePrimeiroNome(x, true));
+                        setEditPrimeiroNome(false);
+                      }}
+                      placeholder="Ex: João"
+                      className={cn("h-9 text-sm sm:h-10 sm:text-base pr-12", !editPrimeiroNome && "bg-muted")}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
+                      onClick={() => (editPrimeiroNome ? setEditPrimeiroNome(false) : setEditPrimeiroNome(true))}
+                    >
+                      {editPrimeiroNome ? <Check className="h-4 w-4 text-green-600" /> : <PencilLine className="h-4 w-4" />}
+                    </Button>
+                  </div>
                   <FieldExpectedStatus fieldKey="primeiroNome" value={form.primeiroNome ?? ""} error={getError("primeiroNome")} touched={getTouched("primeiroNome")} />
                 </div>
                 <div className="space-y-1.5 sm:space-y-2">
                   <Label required className="text-xs sm:text-sm">Sobrenome</Label>
-                  <Input
-                    value={form.ultimoNome}
-                    onChange={(e) => {
-                      const formatted = formatTitleCase(e.target.value);
-                      setForm((prev) => ({ ...prev, ultimoNome: formatted }));
-                      handleChange("ultimoNome", formatted, (x) => validateUltimoNome(x, true));
-                    }}
-                    onBlur={() => handleBlur("ultimoNome", form.ultimoNome ?? "", (x) => validateUltimoNome(x, true))}
-                    placeholder="Ex: Silva"
-                    className="h-9 text-sm sm:h-10 sm:text-base"
-                  />
+                  <div ref={refUltimoNome} className="relative">
+                    <Input
+                      value={form.ultimoNome}
+                      disabled={!editUltimoNome}
+                      onChange={(e) => {
+                        const formatted = formatTitleCase(e.target.value);
+                        setForm((prev) => ({ ...prev, ultimoNome: formatted }));
+                        handleChange("ultimoNome", formatted, (x) => validateUltimoNome(x, true));
+                      }}
+                      onBlur={() => {
+                        handleBlur("ultimoNome", form.ultimoNome ?? "", (x) => validateUltimoNome(x, true));
+                        setEditUltimoNome(false);
+                      }}
+                      placeholder="Ex: Silva"
+                      className={cn("h-9 text-sm sm:h-10 sm:text-base pr-12", !editUltimoNome && "bg-muted")}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
+                      onClick={() => (editUltimoNome ? setEditUltimoNome(false) : setEditUltimoNome(true))}
+                    >
+                      {editUltimoNome ? <Check className="h-4 w-4 text-green-600" /> : <PencilLine className="h-4 w-4" />}
+                    </Button>
+                  </div>
                   <FieldExpectedStatus fieldKey="ultimoNome" value={form.ultimoNome ?? ""} error={getError("ultimoNome")} touched={getTouched("ultimoNome")} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2">
                   <Label required>Usuário (login)</Label>
-                  <Input
-                    value={form.username}
-                    onChange={(e) => {
-                      setForm((prev) => ({ ...prev, username: e.target.value }));
-                      handleChange("username", e.target.value, (v) => validateUsername(v, true));
-                    }}
-                    onBlur={() => handleBlur("username", form.username ?? "", (v) => validateUsername(v, true))}
-                    placeholder="primeiro.ultimonome"
-                  />
+                  <div ref={refUsername} className="relative">
+                    <Input
+                      value={form.username}
+                      disabled={!editUsername}
+                      onChange={(e) => {
+                        setForm((prev) => ({ ...prev, username: e.target.value }));
+                        handleChange("username", e.target.value, (v) => validateUsername(v, true));
+                      }}
+                      onBlur={() => {
+                        handleBlur("username", form.username ?? "", (v) => validateUsername(v, true));
+                        setEditUsername(false);
+                      }}
+                      placeholder="primeiro.ultimonome"
+                      className={cn("pr-12", !editUsername && "bg-muted")}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
+                      onClick={() => (editUsername ? setEditUsername(false) : setEditUsername(true))}
+                    >
+                      {editUsername ? <Check className="h-4 w-4 text-green-600" /> : <PencilLine className="h-4 w-4" />}
+                    </Button>
+                  </div>
                   <FieldExpectedStatus fieldKey="username" value={form.username ?? ""} error={getError("username")} touched={getTouched("username")} />
                 </div>
                 <div className="space-y-2">
-                  <Label>CPF</Label>
+                  <Label required>CPF</Label>
                   <Input
                     value={form.cpf}
                     onChange={(e) => {
@@ -795,7 +949,7 @@ export default function FuncionariosPage() {
               </div>
               {formOpen === "create" && (
                 <div className="space-y-2">
-                  <Label>Senha</Label>
+                  <Label required>Senha</Label>
                   <Input
                     type="password"
                     value={form.senha}
@@ -814,7 +968,7 @@ export default function FuncionariosPage() {
               <div className="flex items-center justify-between gap-2 rounded-lg border p-3 sm:p-4">
                 <div className="min-w-0">
                   <p className="text-sm font-medium sm:text-base">Incluir telefone</p>
-                  <p className="text-xs text-muted-foreground sm:text-sm">Ao ativar, o telefone será enviado na request.</p>
+                  <p className="text-xs text-muted-foreground sm:text-sm">Ao ativar, o será enviado para {formOpen === "create" ? "cadastrar" : "editar"}.</p>
                 </div>
                 <Switch checked={ativarTelefone} onCheckedChange={setAtivarTelefone} className="shrink-0" />
               </div>
@@ -825,59 +979,71 @@ export default function FuncionariosPage() {
                   <Input
                     disabled={!ativarTelefone}
                     value={form.usuarioTelefone?.codigoPais ?? "55"}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, "").slice(0, 4) || "55";
                       setForm((prev) => ({
                         ...prev,
                         usuarioTelefone: {
                           ...(prev.usuarioTelefone ?? { codigoPais: "55", ddd: "", numero: "" }),
-                          codigoPais: e.target.value,
+                          codigoPais: v,
                         },
-                      }))
-                    }
+                      }));
+                      handleChange("codigoPais", v, (x) => validateCodigoPais(x, true));
+                    }}
+                    onBlur={() => handleBlur("codigoPais", form.usuarioTelefone?.codigoPais ?? "", (x) => validateCodigoPais(x, true))}
                     placeholder="55"
                   />
+                  <FieldExpectedStatus fieldKey="codigoPais" value={form.usuarioTelefone?.codigoPais ?? ""} error={getError("codigoPais")} touched={getTouched("codigoPais")} />
                 </div>
                 <div className="space-y-2">
                   <Label required>DDD</Label>
                   <Input
                     disabled={!ativarTelefone}
                     value={form.usuarioTelefone?.ddd ?? ""}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const next = maskDddInput(e.target.value);
                       setForm((prev) => ({
                         ...prev,
                         usuarioTelefone: {
                           ...(prev.usuarioTelefone ?? { codigoPais: "55", ddd: "", numero: "" }),
-                          ddd: e.target.value,
+                          ddd: next,
                         },
-                      }))
-                    }
+                      }));
+                      handleChange("ddd", next, (x) => validateDdd(x, true));
+                    }}
+                    onBlur={() => handleBlur("ddd", form.usuarioTelefone?.ddd ?? "", (x) => validateDdd(x, true))}
                     placeholder="11"
                   />
+                  <FieldExpectedStatus fieldKey="ddd" value={form.usuarioTelefone?.ddd ?? ""} error={getError("ddd")} touched={getTouched("ddd")} />
                 </div>
                 <div className="space-y-2">
                   <Label required>Número</Label>
                   <Input
                     disabled={!ativarTelefone}
                     value={form.usuarioTelefone?.numero ?? ""}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const next = maskNumeroTelefoneInput(e.target.value);
                       setForm((prev) => ({
                         ...prev,
                         usuarioTelefone: {
                           ...(prev.usuarioTelefone ?? { codigoPais: "55", ddd: "", numero: "" }),
-                          numero: e.target.value,
+                          numero: next,
                         },
-                      }))
-                    }
-                    placeholder="999999999"
+                      }));
+                      handleChange("numero", next, (x) => validateNumeroTelefone(x, true));
+                    }}
+                    onBlur={() => handleBlur("numero", form.usuarioTelefone?.numero ?? "", (x) => validateNumeroTelefone(x, true))}
+                    placeholder="99999-9999"
                   />
+                  <FieldExpectedStatus fieldKey="numeroTelefone" value={form.usuarioTelefone?.numero ?? ""} error={getError("numero")} touched={getTouched("numero")} />
                 </div>
               </div>
             </TabsContent>
-            <TabsContent value="contrato" className="space-y-4 pt-4 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden">
+            <TabsContent value="contrato" className="space-y-4 pt-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden data-[state=inactive]:hidden px-1 py-0.5">
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <div>
                   <p className="font-medium">Incluir contrato</p>
-                  <p className="text-sm text-muted-foreground">Ao ativar, o contrato será enviado na request.</p>
+                  <p className="text-sm text-muted-foreground">Ao ativar, o será enviado na request.</p>
                 </div>
                 <Switch checked={ativarContrato} onCheckedChange={setAtivarContrato} />
               </div>
@@ -905,15 +1071,16 @@ export default function FuncionariosPage() {
                       <Label>PIS/PASEP (opcional)</Label>
                       <Input
                         value={form.contratoFuncionario.pisPasep ?? ""}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const next = maskPisPasepInput(e.target.value);
                           setForm((prev) => ({
                             ...prev,
                             contratoFuncionario: prev.contratoFuncionario
-                              ? { ...prev.contratoFuncionario, pisPasep: e.target.value || null }
-                              : emptyContrato(),
-                          }))
-                        }
-                        placeholder="PIS/PASEP"
+                              ? { ...prev.contratoFuncionario, pisPasep: next || null }
+                              : { ...emptyContrato(), pisPasep: next || null },
+                          }));
+                        }}
+                        placeholder="000.00000.00-0"
                       />
                     </div>
                   </div>
@@ -922,30 +1089,35 @@ export default function FuncionariosPage() {
                       <Label required>Cargo</Label>
                       <Input
                         value={form.contratoFuncionario.cargo}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const formatted = formatTitleCase(e.target.value);
                           setForm((prev) => ({
                             ...prev,
                             contratoFuncionario: prev.contratoFuncionario
-                              ? { ...prev.contratoFuncionario, cargo: e.target.value }
-                              : emptyContrato(),
-                          }))
-                        }
+                              ? { ...prev.contratoFuncionario, cargo: formatted }
+                              : { ...emptyContrato(), cargo: formatted },
+                          }));
+                          handleChange("cargo", formatted, (x) => validateCargo(x, true));
+                        }}
+                        onBlur={() => handleBlur("cargo", form.contratoFuncionario?.cargo ?? "", (x) => validateCargo(x, true))}
                         placeholder="Cargo"
                       />
+                      <FieldExpectedStatus fieldKey="cargo" value={form.contratoFuncionario?.cargo ?? ""} error={getError("cargo")} touched={getTouched("cargo")} />
                     </div>
                     <div className="space-y-2">
                       <Label>Departamento (opcional)</Label>
                       <Input
                         disabled={!ativarContrato}
                         value={form.contratoFuncionario.departamento ?? ""}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const formatted = formatTitleCase(e.target.value);
                           setForm((prev) => ({
                             ...prev,
                             contratoFuncionario: prev.contratoFuncionario
-                              ? { ...prev.contratoFuncionario, departamento: e.target.value || null }
-                              : emptyContrato(),
-                          }))
-                        }
+                              ? { ...prev.contratoFuncionario, departamento: formatted || null }
+                              : { ...emptyContrato(), departamento: formatted || null },
+                          }));
+                        }}
                         placeholder="Departamento"
                       />
                     </div>
@@ -963,6 +1135,7 @@ export default function FuncionariosPage() {
                               ? { ...prev.contratoFuncionario, tipoContratoId: id }
                               : emptyContrato(),
                           }));
+                          handleChange("tipoContratoId", v ?? "", (x) => validateRequiredSelect(x, "Tipo de contrato é obrigatório."));
                         }}
                       >
                         <SelectTrigger disabled={!ativarContrato}>
@@ -976,6 +1149,7 @@ export default function FuncionariosPage() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <FieldExpectedStatus fieldKey="tipoContratoId" value={form.contratoFuncionario?.tipoContratoId ? String(form.contratoFuncionario.tipoContratoId) : ""} error={getError("tipoContratoId")} touched={getTouched("tipoContratoId")} />
                     </div>
                     <div className="space-y-2 flex items-center gap-2 pt-8">
                       <Checkbox
@@ -1000,15 +1174,19 @@ export default function FuncionariosPage() {
                         disabled={!ativarContrato}
                         type="date"
                         value={form.contratoFuncionario.dataAdmissao}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const v = e.target.value;
                           setForm((prev) => ({
                             ...prev,
                             contratoFuncionario: prev.contratoFuncionario
-                              ? { ...prev.contratoFuncionario, dataAdmissao: e.target.value }
+                              ? { ...prev.contratoFuncionario, dataAdmissao: v }
                               : emptyContrato(),
-                          }))
-                        }
+                          }));
+                          handleChange("dataAdmissao", v, (x) => validateDataAdmissao(x, true));
+                        }}
+                        onBlur={() => handleBlur("dataAdmissao", form.contratoFuncionario?.dataAdmissao ?? "", (x) => validateDataAdmissao(x, true))}
                       />
+                      <FieldExpectedStatus fieldKey="dataAdmissao" value={form.contratoFuncionario?.dataAdmissao ?? ""} error={getError("dataAdmissao")} touched={getTouched("dataAdmissao")} />
                     </div>
                     {formOpen === "edit" && (
                       <div className="space-y-2">
@@ -1031,42 +1209,52 @@ export default function FuncionariosPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-1.5 sm:space-y-2">
-                      <Label>Salário mensal</Label>
+                      <Label required>Salário mensal</Label>
                       <Input
                         disabled={!ativarContrato}
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        value={form.contratoFuncionario.salarioMensal || ""}
-                        onChange={(e) =>
+                        type="text"
+                        inputMode="numeric"
+                        value={formatSalarioDisplay(salarioFromDigits(salarioMensalInput))}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, "").slice(0, 12);
+                          setSalarioMensalInput(digits);
+                          const valorDecimal = salarioFromDigits(digits);
                           setForm((prev) => ({
                             ...prev,
                             contratoFuncionario: prev.contratoFuncionario
-                              ? { ...prev.contratoFuncionario, salarioMensal: parseFloat(e.target.value) || 0 }
-                              : emptyContrato(),
-                          }))
-                        }
-                        placeholder="0.00"
+                              ? { ...prev.contratoFuncionario, salarioMensal: valorDecimal }
+                              : { ...emptyContrato(), salarioMensal: valorDecimal },
+                          }));
+                          handleChange("salarioMensal", valorDecimal, (v: number) => validateSalarioObrigatorio(v, "Salário mensal"));
+                        }}
+                        onBlur={() => handleBlur("salarioMensal", form.contratoFuncionario?.salarioMensal ?? 0, (v: number) => validateSalarioObrigatorio(v, "Salário mensal"))}
+                        placeholder="0,00"
                       />
+                      <FieldExpectedStatus fieldKey="salarioMensal" value={form.contratoFuncionario?.salarioMensal ?? 0} error={getError("salarioMensal")} touched={getTouched("salarioMensal")} />
                     </div>
                     <div className="space-y-2">
-                      <Label>Salário hora</Label>
+                      <Label required>Salário hora</Label>
                       <Input
                         disabled={!ativarContrato}
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        value={form.contratoFuncionario.salarioHora || ""}
-                        onChange={(e) =>
+                        type="text"
+                        inputMode="numeric"
+                        value={formatSalarioDisplay(salarioFromDigits(salarioHoraInput))}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, "").slice(0, 12);
+                          setSalarioHoraInput(digits);
+                          const valorDecimal = salarioFromDigits(digits);
                           setForm((prev) => ({
                             ...prev,
                             contratoFuncionario: prev.contratoFuncionario
-                              ? { ...prev.contratoFuncionario, salarioHora: parseFloat(e.target.value) || 0 }
-                              : emptyContrato(),
-                          }))
-                        }
-                        placeholder="0.00"
+                              ? { ...prev.contratoFuncionario, salarioHora: valorDecimal }
+                              : { ...emptyContrato(), salarioHora: valorDecimal },
+                          }));
+                          handleChange("salarioHora", valorDecimal, (v: number) => validateSalarioObrigatorio(v, "Salário hora"));
+                        }}
+                        onBlur={() => handleBlur("salarioHora", form.contratoFuncionario?.salarioHora ?? 0, (v: number) => validateSalarioObrigatorio(v, "Salário hora"))}
+                        placeholder="0,00"
                       />
+                      <FieldExpectedStatus fieldKey="salarioHora" value={form.contratoFuncionario?.salarioHora ?? 0} error={getError("salarioHora")} touched={getTouched("salarioHora")} />
                     </div>
                   </div>
                 </div>
@@ -1076,7 +1264,7 @@ export default function FuncionariosPage() {
               <div className="flex items-center justify-between gap-2 rounded-lg border p-3 sm:p-4">
                 <div className="min-w-0">
                   <p className="text-sm font-medium sm:text-base">Incluir jornada</p>
-                  <p className="text-xs text-muted-foreground sm:text-sm">Ao ativar, a configuração de jornada será enviada na request.</p>
+                  <p className="text-xs text-muted-foreground sm:text-sm">Ao ativar, o será enviado para {formOpen === "create" ? "cadastrar" : "editar"}.</p>
                 </div>
                 <Switch checked={ativarJornada} onCheckedChange={setAtivarJornada} className="shrink-0" />
               </div>
@@ -1096,6 +1284,7 @@ export default function FuncionariosPage() {
                               ? { ...prev.jornadaFuncionarioConfig, tipoEscalaJornadaId: id }
                               : emptyJornada(),
                           }));
+                          handleChange("tipoEscalaJornadaId", v ?? "", (x) => validateRequiredSelect(x, "Tipo de escala jornada é obrigatório."));
                         }}
                       >
                         <SelectTrigger disabled={!ativarJornada}>
@@ -1109,22 +1298,28 @@ export default function FuncionariosPage() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <FieldExpectedStatus fieldKey="tipoEscalaJornadaId" value={form.jornadaFuncionarioConfig?.tipoEscalaJornadaId ? String(form.jornadaFuncionarioConfig.tipoEscalaJornadaId) : ""} error={getError("tipoEscalaJornadaId")} touched={getTouched("tipoEscalaJornadaId")} />
                     </div>
                     <div className="space-y-2">
-                      <Label>Carga diária</Label>
+                      <Label required>Carga diária</Label>
                       <Input
                         disabled={!ativarJornada}
                         value={durationToHHmm(form.jornadaFuncionarioConfig.cargaHorariaDiaria ?? "")}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const hhmm = e.target.value;
+                          const dur = hhmmToDuration(hhmm);
                           setForm((prev) => ({
                             ...prev,
                             jornadaFuncionarioConfig: prev.jornadaFuncionarioConfig
-                              ? { ...prev.jornadaFuncionarioConfig, cargaHorariaDiaria: hhmmToDuration(e.target.value) }
+                              ? { ...prev.jornadaFuncionarioConfig, cargaHorariaDiaria: dur }
                               : emptyJornada(),
-                          }))
-                        }
+                          }));
+                          handleChange("cargaHorariaDiaria", hhmm, (x) => validateDurationHhmm(x, true, "Carga diária"));
+                        }}
+                        onBlur={() => handleBlur("cargaHorariaDiaria", durationToHHmm(form.jornadaFuncionarioConfig?.cargaHorariaDiaria ?? ""), (x) => validateDurationHhmm(x, true, "Carga diária"))}
                         placeholder="08:00"
                       />
+                      <FieldExpectedStatus fieldKey="cargaHorariaDiaria" value={durationToHHmm(form.jornadaFuncionarioConfig?.cargaHorariaDiaria ?? "")} error={getError("cargaHorariaDiaria")} touched={getTouched("cargaHorariaDiaria")} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -1133,19 +1328,24 @@ export default function FuncionariosPage() {
                       <Input
                         disabled={!ativarJornada}
                         value={durationToHHmm(form.jornadaFuncionarioConfig.cargaHorariaSemanal ?? "")}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const hhmm = e.target.value;
+                          const dur = hhmmToDuration(hhmm);
                           setForm((prev) => ({
                             ...prev,
                             jornadaFuncionarioConfig: prev.jornadaFuncionarioConfig
-                              ? { ...prev.jornadaFuncionarioConfig, cargaHorariaSemanal: hhmmToDuration(e.target.value) }
+                              ? { ...prev.jornadaFuncionarioConfig, cargaHorariaSemanal: dur }
                               : emptyJornada(),
-                          }))
-                        }
+                          }));
+                          handleChange("cargaHorariaSemanal", hhmm, (x) => validateDurationHhmm(x, true, "Carga semanal"));
+                        }}
+                        onBlur={() => handleBlur("cargaHorariaSemanal", durationToHHmm(form.jornadaFuncionarioConfig?.cargaHorariaSemanal ?? ""), (x) => validateDurationHhmm(x, true, "Carga semanal"))}
                         placeholder="44:00"
                       />
+                      <FieldExpectedStatus fieldKey="cargaHorariaSemanal" value={durationToHHmm(form.jornadaFuncionarioConfig?.cargaHorariaSemanal ?? "")} error={getError("cargaHorariaSemanal")} touched={getTouched("cargaHorariaSemanal")} />
                     </div>
                     <div className="space-y-2">
-                      <Label required>Tolerância</Label>
+                      <Label>Tolerância (opcional)</Label>
                       <Input
                         disabled={!ativarJornada}
                         value={durationToHHmm(form.jornadaFuncionarioConfig.toleranciaPadrao ?? "PT0S")}
@@ -1167,19 +1367,24 @@ export default function FuncionariosPage() {
                       <Input
                         disabled={!ativarJornada}
                         value={durationToHHmm(form.jornadaFuncionarioConfig.intervaloPadrao ?? "")}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const hhmm = e.target.value;
+                          const dur = hhmmToDuration(hhmm);
                           setForm((prev) => ({
                             ...prev,
                             jornadaFuncionarioConfig: prev.jornadaFuncionarioConfig
-                              ? { ...prev.jornadaFuncionarioConfig, intervaloPadrao: hhmmToDuration(e.target.value) }
+                              ? { ...prev.jornadaFuncionarioConfig, intervaloPadrao: dur }
                               : emptyJornada(),
-                          }))
-                        }
+                          }));
+                          handleChange("intervaloPadrao", hhmm, (x) => validateDurationHhmm(x, true, "Intervalo"));
+                        }}
+                        onBlur={() => handleBlur("intervaloPadrao", durationToHHmm(form.jornadaFuncionarioConfig?.intervaloPadrao ?? ""), (x) => validateDurationHhmm(x, true, "Intervalo"))}
                         placeholder="01:00"
                       />
+                      <FieldExpectedStatus fieldKey="intervaloPadrao" value={durationToHHmm(form.jornadaFuncionarioConfig?.intervaloPadrao ?? "")} error={getError("intervaloPadrao")} touched={getTouched("intervaloPadrao")} />
                     </div>
                     <div className="space-y-2">
-                      <Label required>Descanso entre jornadas</Label>
+                      <Label>Descanso entre jornadas (opcional)</Label>
                       <Input
                         disabled={!ativarJornada}
                         value={durationToHHmm(form.jornadaFuncionarioConfig.tempoDescansoEntreJornada ?? "")}
@@ -1197,20 +1402,24 @@ export default function FuncionariosPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-2">
-                      <Label>Entrada padrão</Label>
+                      <Label required>Entrada padrão</Label>
                       <Input
                         disabled={!ativarJornada}
                         type="time"
                         value={form.jornadaFuncionarioConfig.entradaPadrao}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const v = e.target.value;
                           setForm((prev) => ({
                             ...prev,
                             jornadaFuncionarioConfig: prev.jornadaFuncionarioConfig
-                              ? { ...prev.jornadaFuncionarioConfig, entradaPadrao: e.target.value }
+                              ? { ...prev.jornadaFuncionarioConfig, entradaPadrao: v }
                               : emptyJornada(),
-                          }))
-                        }
+                          }));
+                          handleChange("entradaPadrao", v, (x) => validateHorario(x, true, "Entrada padrão"));
+                        }}
+                        onBlur={() => handleBlur("entradaPadrao", form.jornadaFuncionarioConfig?.entradaPadrao ?? "", (x) => validateHorario(x, true, "Entrada padrão"))}
                       />
+                      <FieldExpectedStatus fieldKey="entradaPadrao" value={form.jornadaFuncionarioConfig?.entradaPadrao ?? ""} error={getError("entradaPadrao")} touched={getTouched("entradaPadrao")} />
                     </div>
                     <div className="space-y-2">
                       <Label required>Saída padrão</Label>
@@ -1218,15 +1427,19 @@ export default function FuncionariosPage() {
                         disabled={!ativarJornada}
                         type="time"
                         value={form.jornadaFuncionarioConfig.saidaPadrao}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const v = e.target.value;
                           setForm((prev) => ({
                             ...prev,
                             jornadaFuncionarioConfig: prev.jornadaFuncionarioConfig
-                              ? { ...prev.jornadaFuncionarioConfig, saidaPadrao: e.target.value }
+                              ? { ...prev.jornadaFuncionarioConfig, saidaPadrao: v }
                               : emptyJornada(),
-                          }))
-                        }
+                          }));
+                          handleChange("saidaPadrao", v, (x) => validateHorario(x, true, "Saída padrão"));
+                        }}
+                        onBlur={() => handleBlur("saidaPadrao", form.jornadaFuncionarioConfig?.saidaPadrao ?? "", (x) => validateHorario(x, true, "Saída padrão"))}
                       />
+                      <FieldExpectedStatus fieldKey="saidaPadrao" value={form.jornadaFuncionarioConfig?.saidaPadrao ?? ""} error={getError("saidaPadrao")} touched={getTouched("saidaPadrao")} />
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1248,7 +1461,7 @@ export default function FuncionariosPage() {
                 </div>
               )}
             </TabsContent>
-            <TabsContent value="geofences" className="space-y-3 pt-2 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden sm:space-y-4 sm:pt-4">
+            <TabsContent value="geofences" className="space-y-3 pt-2 flex-1 min-h-0 overflow-y-auto overflow-x-hidden data-[state=inactive]:hidden sm:space-y-4 sm:pt-4 px-1 py-0.5">
               <div className="flex items-center justify-between gap-2 rounded-lg border p-3 sm:p-4">
                 <div className="min-w-0">
                   <p className="text-sm font-medium sm:text-base">Incluir áreas de ponto</p>
@@ -1287,6 +1500,7 @@ export default function FuncionariosPage() {
               )}
             </TabsContent>
           </Tabs>
+          </div>
           <DialogFooter className="flex-shrink-0 gap-2 pt-3 border-t mt-3 sm:pt-4 sm:mt-4">
             <Button variant="outline" size="sm" onClick={() => setFormOpen(null)} className="text-xs sm:text-sm">
               Cancelar

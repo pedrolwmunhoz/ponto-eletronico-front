@@ -93,7 +93,7 @@ export default function RecuperarSenhaPage() {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleEnviarEmail} className="space-y-4">
-                  <FieldWithExpected name="email" label="Email" required expected={getFieldExpected("email")} error={getError("email")} showValid={getTouched("email") || email.trim().length > 0}>
+                  <FieldWithExpected name="email" label="Email" required expected={getFieldExpected("email")} error={getError("email")} showValid={email.trim().length > 0}>
                     <Input id="email" type="email" placeholder="seu@email.com" value={email} onChange={(e) => { setEmail(e.target.value); handleChange("email", e.target.value, (v) => validateEmail(v, true)); }} onBlur={() => handleBlur("email", email, (v) => validateEmail(v, true))} aria-invalid={!!getError("email")} className="mt-1" />
                   </FieldWithExpected>
                   <Button type="submit" className="w-full" disabled={loading}>{loading ? "Enviando..." : "Enviar código"}</Button>
@@ -110,7 +110,7 @@ export default function RecuperarSenhaPage() {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleValidarCodigo} className="space-y-4">
-                  <FieldWithExpected name="codigo" label="Código" required expected={getFieldExpected("codigo")} error={getError("codigo")} showValid={getTouched("codigo") || codigo.trim().length > 0}>
+                  <FieldWithExpected name="codigo" label="Código" required expected={getFieldExpected("codigo")} error={getError("codigo")} showValid={codigo.trim().length > 0}>
                     <Input id="codigo" placeholder="000000" value={codigo} onChange={(e) => { setCodigo(e.target.value); handleChange("codigo", e.target.value, validateCodigoRecuperacao); }} onBlur={() => handleBlur("codigo", codigo, validateCodigoRecuperacao)} maxLength={6} className="mt-1 text-center text-2xl tracking-[0.5em]" aria-invalid={!!getError("codigo")} />
                   </FieldWithExpected>
                   <Button type="submit" className="w-full" disabled={loading}>{loading ? "Verificando..." : "Verificar"}</Button>
@@ -127,7 +127,7 @@ export default function RecuperarSenhaPage() {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleResetarSenha} className="space-y-4">
-                  <FieldWithExpected name="senhaNova" label="Nova senha" required expected={getFieldExpected("senhaNova")} error={getError("senhaNova")} showValid={getTouched("senhaNova") || senhaNova.length > 0}>
+                  <FieldWithExpected name="senhaNova" label="Nova senha" required expected={getFieldExpected("senhaNova")} error={getError("senhaNova")} showValid={senhaNova.length > 0}>
                     <Input id="senhaNova" type="password" placeholder="••••••••" value={senhaNova} onChange={(e) => { setSenhaNova(e.target.value); handleChange("senhaNova", e.target.value, (v) => validateSenha(v, true, "Nova senha")); }} onBlur={() => handleBlur("senhaNova", senhaNova, (v) => validateSenha(v, true, "Nova senha"))} aria-invalid={!!getError("senhaNova")} className="mt-1" />
                   </FieldWithExpected>
                   <div className="space-y-1">

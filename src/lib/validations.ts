@@ -57,7 +57,9 @@ export const REGEX_CEP = /^\d{5}-?\d{3}$|^\d{8}$/;
 /** Código país e DDD/número: apenas dígitos */
 export const REGEX_TELEFONE_NUMERO = /^[0-9]+$/;
 export const MAX_LEN_CODIGO_PAIS = 10;
+export const MIN_LEN_DDD = 2;
 export const MAX_LEN_DDD = 5;
+export const MIN_LEN_NUMERO_TELEFONE = 8;
 export const MAX_LEN_NUMERO_TELEFONE = 20;
 
 // ----- Código recuperação senha - ValidarCodigoRequest -----
@@ -107,9 +109,10 @@ export function validateRequired(value: string | null | undefined, label: string
   return undefined;
 }
 
-/** Valida seleção obrigatória (Select). */
+/** Valida seleção obrigatória (Select). Trata "" e "0" como não selecionado. */
 export function validateRequiredSelect(value: string | null | undefined, message = "Selecione uma opção."): ValidationResult {
-  if ((value ?? "").trim().length === 0) return message;
+  const v = (value ?? "").trim();
+  if (v.length === 0 || v === "0") return message;
   return undefined;
 }
 
@@ -240,24 +243,27 @@ export function validateCep(value: string | null | undefined, required = true): 
 export function validateCodigoPais(value: string | null | undefined, required = true): ValidationResult {
   const v = (value ?? "").trim();
   if (v.length === 0) return required ? "Código do país é obrigatório." : undefined;
+  if (!REGEX_TELEFONE_NUMERO.test(v)) return "Código do país deve conter apenas números.";
   if (v.length > MAX_LEN_CODIGO_PAIS) return "Código do país deve ter no máximo 10 caracteres.";
-  if (!REGEX_TELEFONE_NUMERO.test(v)) return "Apenas números.";
   return undefined;
 }
 
 export function validateDdd(value: string | null | undefined, required = true): ValidationResult {
   const v = (value ?? "").trim();
   if (v.length === 0) return required ? "DDD é obrigatório." : undefined;
+  if (!REGEX_TELEFONE_NUMERO.test(v)) return "DDD deve conter apenas números.";
+  if (v.length < MIN_LEN_DDD) return "DDD deve ter no mínimo 2 dígitos.";
   if (v.length > MAX_LEN_DDD) return "DDD deve ter no máximo 5 caracteres.";
-  if (!REGEX_TELEFONE_NUMERO.test(v)) return "Apenas números.";
   return undefined;
 }
 
 export function validateNumeroTelefone(value: string | null | undefined, required = true): ValidationResult {
   const v = (value ?? "").trim();
-  if (v.length === 0) return required ? "Número é obrigatório." : undefined;
-  if (v.length > MAX_LEN_NUMERO_TELEFONE) return "Número deve ter no máximo 20 caracteres.";
-  if (!REGEX_TELEFONE_NUMERO.test(v.replace(/\D/g, "")) || (v.replace(/\D/g, "").length < 8)) return "Informe um número válido (apenas números).";
+  const digits = v.replace(/\D/g, "");
+  if (digits.length === 0) return required ? "Número é obrigatório." : undefined;
+  if (!REGEX_TELEFONE_NUMERO.test(digits)) return "Número deve conter apenas números.";
+  if (digits.length < MIN_LEN_NUMERO_TELEFONE) return "Número deve ter no mínimo 8 dígitos.";
+  if (digits.length > MAX_LEN_NUMERO_TELEFONE) return "Número deve ter no máximo 20 caracteres.";
   return undefined;
 }
 
@@ -375,18 +381,18 @@ export function validateCargo(value: string | null | undefined, required = true)
   return undefined;
 }
 
-/** Valida formato HH:mm (ex: 08:00, 17:00) */
-export function validateHorario(value: string | null | undefined, required = true): ValidationResult {
+/** Valida formato HH:mm (ex: 08:00, 17:00). label opcional para mensagem "X é obrigatório." */
+export function validateHorario(value: string | null | undefined, required = true, label = "Horário"): ValidationResult {
   const v = (value ?? "").trim();
-  if (v.length === 0) return required ? "Horário é obrigatório." : undefined;
-  if (!REGEX_HORARIO.test(v)) return "Horário inválido (use HH:mm).";
+  if (v.length === 0) return required ? `${label} é obrigatório.` : undefined;
+  if (!REGEX_HORARIO.test(v)) return `${label} inválido (use HH:mm).`;
   return undefined;
 }
 
-/** Valida duração no formato HH:mm (ex: 08:00, 44:00) */
-export function validateDurationHhmm(value: string | null | undefined, required = true): ValidationResult {
+/** Valida duração no formato HH:mm (ex: 08:00, 44:00). label opcional para mensagem "X é obrigatório." */
+export function validateDurationHhmm(value: string | null | undefined, required = true, label = "Campo"): ValidationResult {
   const v = (value ?? "").trim();
-  if (v.length === 0) return required ? "Campo é obrigatório." : undefined;
+  if (v.length === 0) return required ? `${label} é obrigatório.` : undefined;
   if (!REGEX_DURATION_HHMM.test(v)) return "Formato inválido (use HH:mm, ex: 08:00).";
   return undefined;
 }
@@ -413,6 +419,22 @@ export function validateTimezone(value: string | null | undefined, required = tr
   return undefined;
 }
 
+/** Salário obrigatório (ContratoFuncionarioRequest). */
+export function validateSalarioObrigatorio(value: number | null | undefined, label: string): ValidationResult {
+  if (value == null || value === undefined || Number.isNaN(value)) return `${label} é obrigatório.`;
+  if (value < 0) return `${label} não pode ser negativo.`;
+  return undefined;
+}
+
+/** Data de admissão obrigatória (ContratoFuncionarioRequest). */
+export function validateDataAdmissao(value: string | null | undefined, required = true): ValidationResult {
+  const v = (value ?? "").trim();
+  if (v.length === 0) return required ? "Data de admissão é obrigatória." : undefined;
+  const date = new Date(v);
+  if (Number.isNaN(date.getTime())) return "Data inválida.";
+  return undefined;
+}
+
 // ========== Textos "Esperado" (exibidos abaixo do campo) — espelho da API ==========
 
 export const FIELD_EXPECTED: Record<string, string> = {
@@ -436,8 +458,8 @@ export const FIELD_EXPECTED: Record<string, string> = {
   uf: "Exatamente 2 letras (ex: SP).",
   cep: "8 dígitos, com ou sem hífen (12345-678).",
   codigoPais: "Apenas números (máx. 10, ex: 55).",
-  ddd: "Apenas números (máx. 5, ex: 11).",
-  numeroTelefone: "Apenas números (máx. 20, ex: 999999999).",
+  ddd: "Apenas números (mín. 2 e máx. 5 dígitos, ex: 11).",
+  numeroTelefone: "Apenas números (mín. 8 e máx. 20 dígitos).",
   telefone: "Apenas números (máx. 20, ex: 999999999).",
   codigo: "Código de 6 dígitos enviado por e-mail.",
   senhaNova: "Mín. 6 caracteres, 1 maiúscula e 1 número ou pontuação.",
@@ -465,6 +487,15 @@ export const FIELD_EXPECTED: Record<string, string> = {
   tipoAfastamentoId: "Selecione o tipo de afastamento.",
   dataInicio: "Data de início (formato yyyy-MM-dd).",
   dataFim: "Data de fim, opcional (formato yyyy-MM-dd).",
+  dataAdmissao: "Data de admissão (formato yyyy-MM-dd).",
+  salarioMensal: "Valor decimal (ex: 0,00).",
+  salarioHora: "Valor decimal (ex: 0,00).",
+  tipoContratoId: "Selecione o tipo de contrato.",
+  tipoEscalaJornadaId: "Selecione o tipo de escala jornada.",
+  cargaHorariaDiaria: "Duração no formato HH:mm (ex: 08:00).",
+  cargaHorariaSemanal: "Duração no formato HH:mm (ex: 44:00).",
+  entradaPadrao: "Horário no formato HH:mm.",
+  saidaPadrao: "Horário no formato HH:mm.",
 };
 
 export function getFieldExpected(key: string): string {

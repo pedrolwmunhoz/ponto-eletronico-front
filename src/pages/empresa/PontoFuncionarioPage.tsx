@@ -76,6 +76,13 @@ const TIPO_JUSTIFICATIVA_OPCOES = [
   "OUTROS",
 ] as const;
 
+/** Exibe "00:00" quando não houver horas (null, vazio ou "—"). */
+function formatHoraOuZero(val: string | null | undefined): string {
+  const v = (val ?? "").trim();
+  if (!v || v === "—" || v === "\u2014") return "00:00";
+  return v;
+}
+
 function PontoFuncionarioPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -330,9 +337,9 @@ function PontoFuncionarioPage() {
                 funcionarios.map((f) => (
                   <TableRow key={f.usuarioId}>
                     <TableCell className="font-medium">{f.nomeCompleto ?? "—"}</TableCell>
-                    <TableCell className="tabular-nums">{f.totalHorasEsperadas ?? "—"}</TableCell>
-                    <TableCell className="tabular-nums">{f.totalHorasTrabalhadas ?? "—"}</TableCell>
-                    <TableCell className="tabular-nums">{f.totalHorasTrabalhadasFeriado ?? "—"}</TableCell>
+                    <TableCell className="tabular-nums">{formatHoraOuZero(f.totalHorasEsperadas)}</TableCell>
+                    <TableCell className="tabular-nums">{formatHoraOuZero(f.totalHorasTrabalhadas)}</TableCell>
+                    <TableCell className="tabular-nums">{formatHoraOuZero(f.totalHorasTrabalhadasFeriado)}</TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="outline"
@@ -518,11 +525,11 @@ function PontoFuncionarioPage() {
                               return (
                                 <Fragment key={`cell-${j}`}>
                                   <td className="px-4 py-2">{f ? f.dia : "—"}</td>
-                                  <td className="px-4 py-2">{f ? f.hora : "—"}</td>
+                                  <td className="px-4 py-2">{formatHoraOuZero(f?.hora)}</td>
                                 </Fragment>
                               );
                             })}
-                            <td className="px-4 py-2 font-medium">{dia.totalHoras ?? "—"}</td>
+                            <td className="px-4 py-2 font-medium">{formatHoraOuZero(dia.totalHoras)}</td>
                             <td className="sticky right-0 z-10 px-4 py-2 bg-white border-l border-stone-200 shadow-[-4px_0_8px_rgba(0,0,0,0.04)]">
                               <Button
                                 variant="ghost"

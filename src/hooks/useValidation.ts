@@ -75,10 +75,10 @@ export function useValidation(options: UseValidationOptions = {}) {
 
   /**
    * Valida todos os campos e retorna true se todos estiverem válidos.
-   * entries: [nome, valor, validador][]
+   * entries: [nome, valor, validador][] — valor e validador podem ser string ou number por entrada.
    */
   const validateAll = useCallback(
-    <T>(entries: Array<[string, T, FieldValidator<T>]>): boolean => {
+    (entries: Array<[string, unknown, (value: unknown) => ValidationResult]>): boolean => {
       let allValid = true;
       const newErrors: Record<string, string> = {};
       for (const [name, value, validator] of entries) {

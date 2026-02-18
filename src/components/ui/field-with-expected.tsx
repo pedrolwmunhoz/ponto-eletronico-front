@@ -12,12 +12,14 @@ export function FieldExpectedStatus({
   touched,
 }: {
   fieldKey: string;
-  value: string;
+  /** Valor atual (string ou number). Para número, 0/empty = não preenchido; só mostra Válido quando preenchido E sem erro. */
+  value: string | number;
   error?: string | null;
   touched?: boolean;
 }) {
-  const val = (value ?? "").trim();
-  const showValid = !error && (touched || val.length > 0);
+  const val = typeof value === "number" ? (Number.isNaN(value) || value === 0 ? "" : String(value)) : (value ?? "").trim();
+  const filled = val.length > 0;
+  const showValid = !error && filled;
   return (
     <>
       <p className="text-xs text-muted-foreground mt-1">Esperado: {getFieldExpected(fieldKey)}</p>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MapPin, Plus, Locate } from "lucide-react";
+import { MapPin, Plus, Locate, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,7 @@ import {
   validateRaioMetros,
 } from "@/lib/validations";
 import { FieldExpectedStatus } from "@/components/ui/field-with-expected";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { listarGeofences, criarGeofence, listarFuncionarios } from "@/lib/api-empresa";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -203,6 +204,7 @@ export default function GeofencesPage() {
                   value={nome}
                   onChange={(e) => { setNome(e.target.value); handleChange("nome", e.target.value, validadoresGeofence.nome); }}
                   onBlur={() => handleBlur("nome", nome, validadoresGeofence.nome)}
+                  placeholder="Ex: Sede, Filial Centro"
                   aria-invalid={!!getError("nome")}
                 />
                 <FieldExpectedStatus fieldKey="nome" value={nome} error={getError("nome")} touched={getTouched("nome")} />
@@ -218,22 +220,20 @@ export default function GeofencesPage() {
                 />
                 <FieldExpectedStatus fieldKey="descricao" value={descricao} error={getError("descricao")} touched={getTouched("descricao")} />
               </div>
-              <div className="grid gap-2">
-                <div className="flex items-end justify-between gap-2">
-                  <Label className="shrink-0" required>Coordenadas</Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 shrink-0"
-                    onClick={puxarLocalAtual}
-                    disabled={buscandoLocal}
-                  >
-                    <Locate className="h-4 w-4 text-green-600" />
-                    {buscandoLocal ? "Obtendo..." : "Puxar local atual"}
-                  </Button>
+              <div className="grid gap-2 mt-4">
+                <div className="flex items-center gap-1.5">
+                  <Label required>Coordenadas</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" title="Quando o navegador pedir permissão, escolha Permitir e marque Lembrar ou Sempre para não perguntar de novo." className="inline-flex text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded p-0.5" aria-label="Ajuda">
+                        <HelpCircle className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-[260px] z-[100]" sideOffset={8}>
+                      Quando o navegador pedir permissão, escolha &quot;Permitir&quot; e marque &quot;Lembrar&quot; ou &quot;Sempre&quot; para não perguntar de novo.
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
-                <p className="text-xs text-muted-foreground">Quando o navegador pedir permissão, escolha &quot;Permitir&quot; e marque &quot;Lembrar&quot; ou &quot;Sempre&quot; para não perguntar de novo.</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="latitude" required>Latitude</Label>
@@ -264,6 +264,16 @@ export default function GeofencesPage() {
                     <FieldExpectedStatus fieldKey="longitude" value={longitude} error={getError("longitude")} touched={getTouched("longitude")} />
                   </div>
                 </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full gap-2 text-sm"
+                  onClick={puxarLocalAtual}
+                  disabled={buscandoLocal}
+                >
+                  <Locate className="h-4 w-4 text-green-600 shrink-0" />
+                  {buscandoLocal ? "Buscando..." : "Usar minha localização atual"}
+                </Button>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="raioMetros" required>Raio (metros)</Label>
@@ -287,12 +297,12 @@ export default function GeofencesPage() {
                   >
                     {acessoParcialAtivo ? "Parcial" : "Todos"}
                   </span>
-                  <Label>Funcionários</Label>
+                  <Label>Funcionários (opcional)</Label>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {acessoParcialAtivo
                     ? "Clique na linha para marcar quais funcionários têm acesso. Deixe vazio = todos."
-                    : "Ao ativar, somente alguns funcionários terão acesso a essa geolocalização, ou deixe desativado para selecionar empresa inteira."}
+                    : "Ao ativar, somente alguns funcionários terão acesso a essa geolocalização, ou deixe sem funcionários para empresa inteira."}
                 </p>
                 <div className="flex items-center gap-2">
                   <Checkbox

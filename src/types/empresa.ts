@@ -349,6 +349,7 @@ export interface FuncionarioPerfilResponse {
   usuarioTelefone?: UsuarioTelefoneRequest | null;
   contratoFuncionario?: ContratoFuncionarioRequest | null;
   jornadaFuncionarioConfig?: JornadaFuncionarioConfigRequest | null;
+  geofenceIds?: string[] | null;
 }
 
 /** POST /api/funcionario/registro-ponto/manual — Doc id 29 */

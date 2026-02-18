@@ -8,7 +8,6 @@ import {
   Users,
   Clock,
   FileText,
-  Settings,
   MapPin,
   CalendarDays,
   Calendar,
@@ -36,7 +35,6 @@ const navItems = [
   { to: "/empresa/geofences", icon: MapPin, label: "Áreas de ponto" },
   { to: "/empresa/relatorios", icon: BarChart3, label: "Relatórios" },
   { to: "/empresa/auditoria", icon: Shield, label: "Auditoria" },
-  { to: "/empresa/configuracoes", icon: Settings, label: "Configurações" },
 ];
 
 export default function EmpresaLayout() {

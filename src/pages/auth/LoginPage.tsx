@@ -50,8 +50,9 @@ export default function LoginPage() {
       ["senha", senha, (v) => validateSenha(v, true)],
     ]);
     if (!ok) return;
+    const valorEnvio = tipoCredencial === "CPF" || tipoCredencial === "CNPJ" || tipoCredencial === "TELEFONE" ? valor.replace(/\D/g, "") : valor;
     try {
-      await login({ valor, tipoCredencial, senha });
+      await login({ valor: valorEnvio, tipoCredencial, senha });
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -114,7 +115,7 @@ export default function LoginPage() {
                 required
                 expected={getFieldExpected(tipoCredencial.toLowerCase())}
                 error={getError("valor")}
-                showValid={getTouched("valor") || valor.trim().length > 0}
+                showValid={valor.trim().length > 0}
               >
                 <Input
                   id="valor"
@@ -173,7 +174,7 @@ export default function LoginPage() {
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Esperado: {getFieldExpected("senha")}</p>
                 {getError("senha") && <p role="alert" className="text-sm text-destructive">{getError("senha")}</p>}
-                {!getError("senha") && (getTouched("senha") || senha.length > 0) && (
+                {!getError("senha") && senha.length > 0 && (
                   <p className="text-sm text-green-600 dark:text-green-500 flex items-center gap-1">
                     <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
                     Válido
