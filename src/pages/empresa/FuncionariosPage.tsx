@@ -73,11 +73,16 @@ import {
   validateCodigoPais,
   validateDdd,
   validateNumeroTelefone,
+  validateData,
   validateDataAdmissao,
+  validateMatricula,
+  validateComplemento,
+  validatePisPasep,
   validateSalarioObrigatorio,
   validateDurationHhmm,
   validateHorario,
   validateRequiredSelect,
+  getFieldExpected,
 } from "@/lib/validations";
 import { FieldExpectedStatus } from "@/components/ui/field-with-expected";
 import {
@@ -164,7 +169,7 @@ import { durationToHHmm, hhmmToDuration } from "@/lib/duration";
 export default function FuncionariosPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { getError, getTouched, handleBlur, handleChange, validateAll } = useValidation();
+  const { getError, getTouched, handleBlur, handleChange, validateAll, clearError } = useValidation();
   const [page, setPage] = useState(0);
   const [pageSize] = useState(8);
   const [nome, setNome] = useState("");
@@ -190,6 +195,19 @@ export default function FuncionariosPage() {
   const refPrimeiroNome = useRef<HTMLDivElement>(null);
   const refUltimoNome = useRef<HTMLDivElement>(null);
   const refUsername = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (resetSenhaTarget) {
+      setSenhaNova("");
+      clearError("resetSenhaNova");
+    }
+  }, [resetSenhaTarget, clearError]);
+  useEffect(() => {
+    if (resetEmailTarget) {
+      setEmailNovo("");
+      clearError("resetEmailNovo");
+    }
+  }, [resetEmailTarget, clearError]);
 
   useEffect(() => {
     if (formOpen === null) return;
@@ -485,6 +503,7 @@ export default function FuncionariosPage() {
       ...(ativarContrato && form.contratoFuncionario
         ? ([
             ["cargo", form.contratoFuncionario.cargo ?? "", (v: unknown) => validateCargo(v as string, true)],
+            ["pisPasep", form.contratoFuncionario.pisPasep ?? "", (v: unknown) => validatePisPasep(v as string, false)],
             ["tipoContratoId", form.contratoFuncionario.tipoContratoId ? String(form.contratoFuncionario.tipoContratoId) : "", (v: unknown) => validateRequiredSelect(v as string, "Tipo de contrato é obrigatório.")],
             ["dataAdmissao", form.contratoFuncionario.dataAdmissao ?? "", (v: unknown) => validateDataAdmissao(v as string, true)],
             ["salarioMensal", form.contratoFuncionario.salarioMensal ?? 0, (v: unknown) => validateSalarioObrigatorio(v as number, "Salário mensal")],
@@ -506,6 +525,7 @@ export default function FuncionariosPage() {
       toast({ variant: "destructive", title: "Corrija os erros antes de salvar." });
       return;
     }
+    // CPF: usuário vê com máscara; envia para API sem máscara (11 dígitos).
     const body: FuncionarioCreateRequest = {
       username: form.username.trim(),
       nomeCompleto: form.nomeCompleto.trim(),
@@ -542,6 +562,7 @@ export default function FuncionariosPage() {
       ...(ativarContrato && form.contratoFuncionario
         ? ([
             ["cargo", form.contratoFuncionario.cargo ?? "", (v: unknown) => validateCargo(v as string, true)],
+            ["pisPasep", form.contratoFuncionario.pisPasep ?? "", (v: unknown) => validatePisPasep(v as string, false)],
             ["tipoContratoId", form.contratoFuncionario.tipoContratoId ? String(form.contratoFuncionario.tipoContratoId) : "", (v: unknown) => validateRequiredSelect(v as string, "Tipo de contrato é obrigatório.")],
             ["dataAdmissao", form.contratoFuncionario.dataAdmissao ?? "", (v: unknown) => validateDataAdmissao(v as string, true)],
             ["salarioMensal", form.contratoFuncionario.salarioMensal ?? 0, (v: unknown) => validateSalarioObrigatorio(v as number, "Salário mensal")],
@@ -563,6 +584,7 @@ export default function FuncionariosPage() {
       toast({ variant: "destructive", title: "Corrija os erros antes de salvar." });
       return;
     }
+    // CPF: envia para API sem máscara (11 dígitos).
     const body: FuncionarioUpdateRequest = {
       username: form.username.trim(),
       nomeCompleto: form.nomeCompleto.trim(),
@@ -927,10 +949,15 @@ export default function FuncionariosPage() {
                   <Input
                     type="date"
                     value={form.dataNascimento ?? ""}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, dataNascimento: e.target.value || null }))
-                    }
+                    onChange={(e) => {
+                      const v = e.target.value || null;
+                      setForm((prev) => ({ ...prev, dataNascimento: v }));
+                      handleChange("dataNascimento", v ?? "", (x) => validateData(x, false));
+                    }}
+                    onBlur={() => handleBlur("dataNascimento", form.dataNascimento ?? "", (x) => validateData(x, false))}
+                    aria-invalid={!!getError("dataNascimento")}
                   />
+                  <FieldExpectedStatus fieldKey="dataNascimento" value={form.dataNascimento ?? ""} error={getError("dataNascimento")} touched={getTouched("dataNascimento")} />
                 </div>
               </div>
               <div className="space-y-1.5 sm:space-y-2">
@@ -1056,16 +1083,21 @@ export default function FuncionariosPage() {
                       <Input
                         disabled={!ativarContrato}
                         value={form.contratoFuncionario.matricula ?? ""}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const v = e.target.value || null;
                           setForm((prev) => ({
                             ...prev,
                             contratoFuncionario: prev.contratoFuncionario
-                              ? { ...prev.contratoFuncionario, matricula: e.target.value || null }
+                              ? { ...prev.contratoFuncionario, matricula: v }
                               : emptyContrato(),
-                          }))
-                        }
+                          }));
+                          handleChange("matricula", v ?? "", (x) => validateMatricula(x, false));
+                        }}
+                        onBlur={() => handleBlur("matricula", form.contratoFuncionario?.matricula ?? "", (x) => validateMatricula(x, false))}
                         placeholder="Matrícula"
+                        aria-invalid={!!getError("matricula")}
                       />
+                      <FieldExpectedStatus fieldKey="matricula" value={form.contratoFuncionario?.matricula ?? ""} error={getError("matricula")} touched={getTouched("matricula")} />
                     </div>
                     <div className="space-y-2">
                       <Label>PIS/PASEP (opcional)</Label>
@@ -1079,9 +1111,13 @@ export default function FuncionariosPage() {
                               ? { ...prev.contratoFuncionario, pisPasep: next || null }
                               : { ...emptyContrato(), pisPasep: next || null },
                           }));
+                          handleChange("pisPasep", next || "", (v) => validatePisPasep(v, false));
                         }}
+                        onBlur={() => handleBlur("pisPasep", form.contratoFuncionario?.pisPasep ?? "", (v) => validatePisPasep(v, false))}
                         placeholder="000.00000.00-0"
+                        aria-invalid={!!getError("pisPasep")}
                       />
+                      <FieldExpectedStatus fieldKey="pisPasep" value={form.contratoFuncionario?.pisPasep ?? ""} error={getError("pisPasep")} touched={getTouched("pisPasep")} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -1117,9 +1153,13 @@ export default function FuncionariosPage() {
                               ? { ...prev.contratoFuncionario, departamento: formatted || null }
                               : { ...emptyContrato(), departamento: formatted || null },
                           }));
+                          handleChange("departamento", formatted || "", (x) => validateComplemento(x));
                         }}
+                        onBlur={() => handleBlur("departamento", form.contratoFuncionario?.departamento ?? "", (x) => validateComplemento(x))}
                         placeholder="Departamento"
+                        aria-invalid={!!getError("departamento")}
                       />
+                      <FieldExpectedStatus fieldKey="departamento" value={form.contratoFuncionario?.departamento ?? ""} error={getError("departamento")} touched={getTouched("departamento")} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -1195,15 +1235,20 @@ export default function FuncionariosPage() {
                           disabled={!ativarContrato}
                           type="date"
                           value={form.contratoFuncionario.dataDemissao ?? ""}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            const v = e.target.value || null;
                             setForm((prev) => ({
                               ...prev,
                               contratoFuncionario: prev.contratoFuncionario
-                                ? { ...prev.contratoFuncionario, dataDemissao: e.target.value || null }
+                                ? { ...prev.contratoFuncionario, dataDemissao: v }
                                 : emptyContrato(),
-                            }))
-                          }
+                            }));
+                            handleChange("dataDemissao", v ?? "", (x) => validateData(x, false));
+                          }}
+                          onBlur={() => handleBlur("dataDemissao", form.contratoFuncionario?.dataDemissao ?? "", (x) => validateData(x, false))}
+                          aria-invalid={!!getError("dataDemissao")}
                         />
+                        <FieldExpectedStatus fieldKey="dataDemissao" value={form.contratoFuncionario?.dataDemissao ?? ""} error={getError("dataDemissao")} touched={getTouched("dataDemissao")} />
                       </div>
                     )}
                   </div>
@@ -1349,16 +1394,22 @@ export default function FuncionariosPage() {
                       <Input
                         disabled={!ativarJornada}
                         value={durationToHHmm(form.jornadaFuncionarioConfig.toleranciaPadrao ?? "PT0S")}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const hhmm = e.target.value;
+                          const dur = hhmmToDuration(hhmm) || "PT0S";
                           setForm((prev) => ({
                             ...prev,
                             jornadaFuncionarioConfig: prev.jornadaFuncionarioConfig
-                              ? { ...prev.jornadaFuncionarioConfig, toleranciaPadrao: hhmmToDuration(e.target.value) || "PT0S" }
+                              ? { ...prev.jornadaFuncionarioConfig, toleranciaPadrao: dur }
                               : emptyJornada(),
-                          }))
-                        }
+                          }));
+                          handleChange("toleranciaPadrao", hhmm, (x) => validateDurationHhmm(x, false, "Tolerância"));
+                        }}
+                        onBlur={() => handleBlur("toleranciaPadrao", durationToHHmm(form.jornadaFuncionarioConfig?.toleranciaPadrao ?? "PT0S"), (x) => validateDurationHhmm(x, false, "Tolerância"))}
                         placeholder="00:00"
+                        aria-invalid={!!getError("toleranciaPadrao")}
                       />
+                      <FieldExpectedStatus fieldKey="toleranciaPadrao" value={durationToHHmm(form.jornadaFuncionarioConfig?.toleranciaPadrao ?? "PT0S")} error={getError("toleranciaPadrao")} touched={getTouched("toleranciaPadrao")} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -1388,16 +1439,22 @@ export default function FuncionariosPage() {
                       <Input
                         disabled={!ativarJornada}
                         value={durationToHHmm(form.jornadaFuncionarioConfig.tempoDescansoEntreJornada ?? "")}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const hhmm = e.target.value;
+                          const dur = hhmmToDuration(hhmm);
                           setForm((prev) => ({
                             ...prev,
                             jornadaFuncionarioConfig: prev.jornadaFuncionarioConfig
-                              ? { ...prev.jornadaFuncionarioConfig, tempoDescansoEntreJornada: hhmmToDuration(e.target.value) }
+                              ? { ...prev.jornadaFuncionarioConfig, tempoDescansoEntreJornada: dur }
                               : emptyJornada(),
-                          }))
-                        }
+                          }));
+                          handleChange("tempoDescansoEntreJornada", hhmm, (x) => validateDurationHhmm(x, false, "Descanso entre jornadas"));
+                        }}
+                        onBlur={() => handleBlur("tempoDescansoEntreJornada", durationToHHmm(form.jornadaFuncionarioConfig?.tempoDescansoEntreJornada ?? ""), (x) => validateDurationHhmm(x, false, "Descanso entre jornadas"))}
                         placeholder="11:00"
+                        aria-invalid={!!getError("tempoDescansoEntreJornada")}
                       />
+                      <FieldExpectedStatus fieldKey="tempoDescansoEntreJornada" value={durationToHHmm(form.jornadaFuncionarioConfig?.tempoDescansoEntreJornada ?? "")} error={getError("tempoDescansoEntreJornada")} touched={getTouched("tempoDescansoEntreJornada")} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -1519,7 +1576,9 @@ export default function FuncionariosPage() {
                     !form.ultimoNome?.trim() ||
                     !form.cpf?.trim() ||
                     !form.email?.trim() ||
-                    !form.senha?.trim()))
+                    !form.senha?.trim() ||
+                    !!validateCpf(form.cpf, true))) ||
+                (formOpen === "edit" && !!form.cpf?.trim() && !!validateCpf(form.cpf, true))
               }
             >
               {formOpen === "create" ? "Criar" : "Salvar"}
@@ -1542,14 +1601,24 @@ export default function FuncionariosPage() {
             <Input
               type="password"
               value={senhaNova}
-              onChange={(e) => setSenhaNova(e.target.value)}
+              onChange={(e) => {
+                setSenhaNova(e.target.value);
+                handleChange("resetSenhaNova", e.target.value, (v) => validateSenha(v, true, "Nova senha"));
+              }}
+              onBlur={() => handleBlur("resetSenhaNova", senhaNova, (v) => validateSenha(v, true, "Nova senha"))}
               placeholder="••••••••"
+              aria-invalid={!!getError("resetSenhaNova")}
             />
+            <p className="text-xs text-muted-foreground">Esperado: {getFieldExpected("senha")}</p>
+            {getError("resetSenhaNova") && <p role="alert" className="text-sm text-destructive">{getError("resetSenhaNova")}</p>}
+            {!getError("resetSenhaNova") && senhaNova.length > 0 && (
+              <p className="text-sm text-green-600 dark:text-green-500 flex items-center gap-1">Válido</p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setResetSenhaTarget(null)}>Cancelar</Button>
             <Button
-              disabled={!senhaNova.trim() || resetSenhaMutation.isPending}
+              disabled={!senhaNova.trim() || !!getError("resetSenhaNova") || resetSenhaMutation.isPending}
               onClick={() =>
                 resetSenhaTarget && resetSenhaMutation.mutate({ id: resetSenhaTarget.usuarioId, senhaNova })
               }
@@ -1574,14 +1643,24 @@ export default function FuncionariosPage() {
             <Input
               type="email"
               value={emailNovo}
-              onChange={(e) => setEmailNovo(e.target.value)}
+              onChange={(e) => {
+                setEmailNovo(e.target.value);
+                handleChange("resetEmailNovo", e.target.value, (v) => validateEmail(v, true));
+              }}
+              onBlur={() => handleBlur("resetEmailNovo", emailNovo, (v) => validateEmail(v, true))}
               placeholder="email@empresa.com"
+              aria-invalid={!!getError("resetEmailNovo")}
             />
+            <p className="text-xs text-muted-foreground">Esperado: {getFieldExpected("email")}</p>
+            {getError("resetEmailNovo") && <p role="alert" className="text-sm text-destructive">{getError("resetEmailNovo")}</p>}
+            {!getError("resetEmailNovo") && emailNovo.trim().length > 0 && (
+              <p className="text-sm text-green-600 dark:text-green-500 flex items-center gap-1">Válido</p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setResetEmailTarget(null)}>Cancelar</Button>
             <Button
-              disabled={!emailNovo.trim() || resetEmailMutation.isPending}
+              disabled={!emailNovo.trim() || !!getError("resetEmailNovo") || resetEmailMutation.isPending}
               onClick={() =>
                 resetEmailTarget &&
                 resetEmailMutation.mutate({ id: resetEmailTarget.usuarioId, emailNovo })

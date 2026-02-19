@@ -166,10 +166,16 @@ export function ModalCriarRegistro({
                 <Label>Observação (opcional)</Label>
                 <Textarea
                   value={observacao}
-                  onChange={(e) => setObservacao(e.target.value)}
+                  onChange={(e) => {
+                    setObservacao(e.target.value);
+                    handleChange("observacao", e.target.value, (v) => validateJustificativa(v, false));
+                  }}
+                  onBlur={() => handleBlur("observacao", observacao, (v) => validateJustificativa(v, false))}
                   placeholder="Observações"
                   rows={2}
+                  aria-invalid={!!getError("observacao")}
                 />
+                <FieldExpectedStatus fieldKey="observacao" value={observacao} error={getError("observacao")} touched={getTouched("observacao")} />
               </div>
             </>
           ) : (
@@ -200,10 +206,16 @@ export function ModalCriarRegistro({
                 <Label>Observação (opcional)</Label>
                 <Textarea
                   value={observacao}
-                  onChange={(e) => setObservacao(e.target.value)}
+                  onChange={(e) => {
+                    setObservacao(e.target.value);
+                    handleChange("observacao", e.target.value, (v) => validateJustificativa(v, false));
+                  }}
+                  onBlur={() => handleBlur("observacao", observacao, (v) => validateJustificativa(v, false))}
                   placeholder="Observações"
                   rows={2}
+                  aria-invalid={!!getError("observacao")}
                 />
+                <FieldExpectedStatus fieldKey="observacao" value={observacao} error={getError("observacao")} touched={getTouched("observacao")} />
               </div>
             </>
           )}

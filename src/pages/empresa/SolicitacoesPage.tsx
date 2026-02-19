@@ -35,7 +35,7 @@ import { Input } from "@/components/ui/input";
 import { FieldExpectedStatus } from "@/components/ui/field-with-expected";
 import { useToast } from "@/hooks/use-toast";
 import { useValidation } from "@/hooks/useValidation";
-import { validateMotivo } from "@/lib/validations";
+import { validateMotivo, validateJustificativa } from "@/lib/validations";
 import {
   listarSolicitacoesPonto,
   aprovarSolicitacaoPonto,
@@ -319,10 +319,16 @@ function SolicitacoesPage() {
               <Textarea
                 id="observacao"
                 value={observacao}
-                onChange={(e) => setObservacao(e.target.value)}
+                onChange={(e) => {
+                  setObservacao(e.target.value);
+                  handleChange("observacao", e.target.value, (v) => validateJustificativa(v, false));
+                }}
+                onBlur={() => handleBlur("observacao", observacao, (v) => validateJustificativa(v, false))}
                 placeholder="Detalhes adicionais"
                 rows={2}
+                aria-invalid={!!getError("observacao")}
               />
+              <FieldExpectedStatus fieldKey="observacao" value={observacao} error={getError("observacao")} touched={getTouched("observacao")} />
             </div>
           </div>
           <AlertDialogFooter>

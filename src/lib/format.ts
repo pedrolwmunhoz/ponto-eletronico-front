@@ -30,14 +30,17 @@ export function maskCpfInput(value: string): string {
   return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
 }
 
-/** Aplica máscara de CNPJ no input enquanto digita (até 14 dígitos). */
+/** Aplica máscara de CNPJ no input: 12 alfanuméricos + 2 dígitos. Nos dois últimos só aceita número. */
 export function maskCnpjInput(value: string): string {
-  const d = onlyDigits(value).slice(0, 14);
-  if (d.length <= 2) return d;
-  if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`;
-  if (d.length <= 8) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`;
-  if (d.length <= 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`;
-  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
+  const s = (value ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  const first12 = s.slice(0, 12);
+  const last2 = s.slice(12, 14).replace(/\D/g, "");
+  const raw = first12 + last2;
+  if (raw.length <= 2) return raw;
+  if (raw.length <= 5) return `${raw.slice(0, 2)}.${raw.slice(2)}`;
+  if (raw.length <= 8) return `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5)}`;
+  if (raw.length <= 12) return `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5, 8)}/${raw.slice(8)}`;
+  return `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5, 8)}/${raw.slice(8, 12)}-${raw.slice(12)}`;
 }
 
 /** PIS/PASEP formatado para exibição: 000.00000.00-0 (11 dígitos). */
@@ -88,6 +91,21 @@ export function maskNumeroTelefoneInput(value: string): string {
   const d = onlyDigits(value).slice(0, 9);
   if (d.length <= 5) return d;
   return `${d.slice(0, 5)}-${d.slice(5)}`;
+}
+
+/**
+ * Aplica máscara de telefone completo (com DDD) enquanto digita:
+ * - (xx) xxxxx-xxxx (11 dígitos)
+ */
+export function maskTelefoneInput(value: string): string {
+  const d = onlyDigits(value).slice(0, 11);
+  if (d.length === 0) return "";
+  if (d.length <= 2) return `(${d}`;
+  const ddd = d.slice(0, 2);
+  const rest = d.slice(2);
+  if (rest.length === 0) return `(${ddd})`;
+  if (rest.length <= 5) return `(${ddd}) ${rest}`;
+  return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
 }
 
 /** Número do endereço: apenas dígitos, até 9999 (máx. 4 dígitos). */

@@ -45,6 +45,8 @@ export interface FieldWithExpectedProps {
   error?: string | null;
   /** Mostrar status "Válido" quando não há erro e o campo foi preenchido/tocado */
   showValid?: boolean;
+  /** Exibir a linha "Esperado: ..." abaixo do campo (default true) */
+  showExpected?: boolean;
   /** Conteúdo do campo (Input, Select, etc.) */
   children: React.ReactNode;
   className?: string;
@@ -64,6 +66,7 @@ export function FieldWithExpected({
   expected,
   error,
   showValid,
+  showExpected = true,
   children,
   className,
 }: FieldWithExpectedProps) {
@@ -78,9 +81,11 @@ export function FieldWithExpected({
         </Label>
       )}
       {children}
+      {showExpected && (
       <p className="text-xs text-muted-foreground">
         Esperado: {expected}
       </p>
+      )}
       {hasError && (
         <p role="alert" className="text-sm text-destructive flex items-center gap-1">
           {error}

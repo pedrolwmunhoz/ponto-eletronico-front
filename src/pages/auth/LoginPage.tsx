@@ -11,7 +11,7 @@ import { FieldWithExpected } from "@/components/ui/field-with-expected";
 import { CheckCircle2, Clock, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useValidation } from "@/hooks/useValidation";
-import { maskCpfInput, maskCnpjInput } from "@/lib/format";
+import { maskCpfInput, maskCnpjInput, maskTelefoneInput } from "@/lib/format";
 import { validateCredencialByTipo, validateSenha, getFieldExpected } from "@/lib/validations";
 import type { TipoCredencial } from "@/types/auth";
 
@@ -23,7 +23,7 @@ export default function LoginPage() {
   const [tipoCredencial, setTipoCredencial] = useState<TipoCredencial>("EMAIL");
   const [senha, setSenha] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const { getError, getTouched, handleBlur, handleChange, validateAll } = useValidation();
+  const { getError, getTouched, handleBlur, handleChange, validateAll, clearError } = useValidation();
 
   const validateValor = (v: string) => validateCredencialByTipo(v, tipoCredencial, true);
 
@@ -41,6 +41,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (tipoCredencial === "CPF" && valor) setValor((v) => maskCpfInput(v));
     if (tipoCredencial === "CNPJ" && valor) setValor((v) => maskCnpjInput(v));
+    if (tipoCredencial === "TELEFONE" && valor) setValor((v) => maskTelefoneInput(v));
   }, [tipoCredencial]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,7 +51,12 @@ export default function LoginPage() {
       ["senha", senha, (v) => validateSenha(v, true)],
     ]);
     if (!ok) return;
-    const valorEnvio = tipoCredencial === "CPF" || tipoCredencial === "CNPJ" || tipoCredencial === "TELEFONE" ? valor.replace(/\D/g, "") : valor;
+    const valorEnvio =
+      tipoCredencial === "CPF" || tipoCredencial === "TELEFONE"
+        ? valor.replace(/\D/g, "")
+        : tipoCredencial === "CNPJ"
+          ? valor.replace(/[^A-Za-z0-9]/g, "").toUpperCase()
+          : valor;
     try {
       await login({ valor: valorEnvio, tipoCredencial, senha });
     } catch (error: any) {
@@ -94,7 +100,11 @@ export default function LoginPage() {
                 <Label htmlFor="tipoCredencial" required>Tipo de credencial</Label>
                 <Select
                   value={tipoCredencial}
-                  onValueChange={(v) => setTipoCredencial(v as TipoCredencial)}
+                  onValueChange={(v) => {
+                    setTipoCredencial(v as TipoCredencial);
+                    setValor("");
+                    clearError("valor");
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -128,6 +138,8 @@ export default function LoginPage() {
                         ? maskCpfInput(raw)
                         : tipoCredencial === "CNPJ"
                           ? maskCnpjInput(raw)
+                          : tipoCredencial === "TELEFONE"
+                            ? maskTelefoneInput(raw)
                           : raw;
                     setValor(next);
                     handleChange("valor", next, validateValor);
@@ -182,7 +194,16 @@ export default function LoginPage() {
                 )}
               </div>
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={
+                  isLoading ||
+                  !valor.trim() ||
+                  !senha ||
+                  !!validateValor(valor)
+                }
+              >
                 {isLoading ? "Entrando..." : "Entrar"}
               </Button>
             </form>

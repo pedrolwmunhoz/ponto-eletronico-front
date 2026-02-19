@@ -25,12 +25,19 @@ export const REGEX_SENHA = /^(?=.*[A-Z])(?=.*[0-9\p{P}\p{S}]).*$/u;
 export const MIN_LEN_SENHA = 6;
 
 // ----- CPF - FuncionarioCreateRequest, FuncionarioUpdateRequest -----
-/** 11 dígitos, com ou sem máscara 000.000.000-00 */
+/** 11 dígitos (com ou sem máscara). Validação real usa DV Módulo 11. */
 export const REGEX_CPF = /^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/;
+const PESOS_CPF_DV1 = [10, 9, 8, 7, 6, 5, 4, 3, 2];
+const PESOS_CPF_DV2 = [11, 10, 9, 8, 7, 6, 5, 4, 3, 2];
 
-// ----- CNPJ - EmpresaCreateRequest -----
-/** 14 dígitos, com ou sem formatação */
-export const REGEX_CNPJ = /^\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}$/;
+// ----- CNPJ - EmpresaCreateRequest (Módulo 11 IN 2.229/2024: numérico + alfanumérico) -----
+/** 14 caracteres: 12 alfanuméricos + 2 dígitos (com ou sem formatação). */
+export const REGEX_CNPJ_FORMAT = /^[A-Za-z0-9]{12}[0-9]{2}$/;
+const PESOS_CNPJ_DV1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+const PESOS_CNPJ_DV2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+function cnpjValorCalculo(c: string): number {
+  return c.toUpperCase().charCodeAt(0) - 48;
+}
 
 // ----- Endereço - EmpresaEnderecoRequest -----
 /** Rua, bairro, cidade: letras, números, espaços e pontuação | Size(max=255) */
@@ -61,6 +68,9 @@ export const MIN_LEN_DDD = 2;
 export const MAX_LEN_DDD = 5;
 export const MIN_LEN_NUMERO_TELEFONE = 8;
 export const MAX_LEN_NUMERO_TELEFONE = 20;
+
+// ----- PIS/PASEP - ContratoFuncionarioRequest (opcional, 11 dígitos sem máscara) -----
+export const LEN_PIS_PASEP = 11;
 
 // ----- Código recuperação senha - ValidarCodigoRequest -----
 export const LEN_CODIGO_RECUPERACAO = 6;
@@ -132,10 +142,20 @@ export function validateCredencialByTipo(
     case "CNPJ":
       return validateCnpj(value, required);
     case "TELEFONE":
-      return validateNumeroTelefone(value, required);
+      return validateTelefoneLogin(value, required);
     default:
       return "Tipo de credencial inválido.";
   }
+}
+
+/** Telefone de login: 11 dígitos (DDD + número). Aceita com ou sem máscara. */
+export function validateTelefoneLogin(value: string | null | undefined, required = true): ValidationResult {
+  const v = (value ?? "").trim();
+  const digits = v.replace(/\D/g, "");
+  if (digits.length === 0) return required ? "Telefone é obrigatório." : undefined;
+  if (!REGEX_TELEFONE_NUMERO.test(digits)) return "Telefone deve conter apenas números.";
+  if (digits.length !== 11) return "Telefone deve ter 11 dígitos (DDD + número).";
+  return undefined;
 }
 
 export function validateUsername(value: string | null | undefined, required = true): ValidationResult {
@@ -163,21 +183,44 @@ export function validateSenha(value: string | null | undefined, required = true,
   return undefined;
 }
 
+/** CPF: 11 dígitos + DV Módulo 11 (pesos 10..2 e 11..2). Aceita com ou sem máscara. */
 export function validateCpf(value: string | null | undefined, required = true): ValidationResult {
   const v = (value ?? "").trim();
   if (v.length === 0) return required ? "CPF é obrigatório." : undefined;
   const digits = onlyDigits(v);
   if (digits.length !== 11) return "CPF deve ter 11 dígitos.";
-  if (!REGEX_CPF.test(v)) return "CPF inválido.";
+  if (/^(\d)\1{10}$/.test(digits)) return "CPF inválido.";
+  let soma = 0;
+  for (let i = 0; i < 9; i++) soma += parseInt(digits[i]!, 10) * PESOS_CPF_DV1[i]!;
+  let resto = soma % 11;
+  const dv1 = resto < 2 ? 0 : 11 - resto;
+  soma = 0;
+  for (let i = 0; i < 9; i++) soma += parseInt(digits[i]!, 10) * PESOS_CPF_DV2[i]!;
+  soma += dv1 * PESOS_CPF_DV2[9]!;
+  resto = soma % 11;
+  const dv2 = resto < 2 ? 0 : 11 - resto;
+  if (parseInt(digits[9]!, 10) !== dv1 || parseInt(digits[10]!, 10) !== dv2) return "CPF inválido.";
   return undefined;
 }
 
+/** CNPJ: 14 caracteres (12 alfanuméricos + 2 DV) + Módulo 11 IN 2.229/2024. Aceita numérico e alfanumérico. */
 export function validateCnpj(value: string | null | undefined, required = true): ValidationResult {
   const v = (value ?? "").trim();
   if (v.length === 0) return required ? "CNPJ é obrigatório." : undefined;
-  const digits = onlyDigits(v);
-  if (digits.length !== 14) return "CNPJ deve ter 14 dígitos.";
-  if (!REGEX_CNPJ.test(v)) return "CNPJ inválido.";
+  const raw = v.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  if (raw.length !== 14) return "CNPJ deve ter 14 caracteres (12 alfanuméricos + 2 dígitos).";
+  if (!/^[A-Z0-9]{12}[0-9]{2}$/.test(raw)) return "CNPJ deve ter 12 alfanuméricos e 2 dígitos verificadores.";
+  if (/^\d{14}$/.test(raw) && /^(\d)\1{13}$/.test(raw)) return "CNPJ inválido.";
+  let soma = 0;
+  for (let i = 0; i < 12; i++) soma += cnpjValorCalculo(raw[i]!) * PESOS_CNPJ_DV1[i]!;
+  let resto = soma % 11;
+  const dv1 = resto < 2 ? 0 : 11 - resto;
+  soma = 0;
+  for (let i = 0; i < 12; i++) soma += cnpjValorCalculo(raw[i]!) * PESOS_CNPJ_DV2[i]!;
+  soma += dv1 * PESOS_CNPJ_DV2[12]!;
+  resto = soma % 11;
+  const dv2 = resto < 2 ? 0 : 11 - resto;
+  if (parseInt(raw[12]!, 10) !== dv1 || parseInt(raw[13]!, 10) !== dv2) return "CNPJ inválido.";
   return undefined;
 }
 
@@ -193,7 +236,7 @@ export function validateRua(value: string | null | undefined, required = true): 
 export function validateNumeroEndereco(value: string | null | undefined, required = true): ValidationResult {
   const v = (value ?? "").trim().replace(/\D/g, "") || (value ?? "").trim();
   if (v.length === 0) return required ? "Número é obrigatório." : undefined;
-  if (v.length > MAX_LEN_NUMERO) return "Número deve ter no máximo 20 caracteres.";
+  if (v.length > MAX_LEN_NUMERO) return "Número deve ter no máximo 4 dígitos.";
   if (!REGEX_NUMERO_ENDERECO.test(v)) return "Apenas números.";
   return undefined;
 }
@@ -264,6 +307,16 @@ export function validateNumeroTelefone(value: string | null | undefined, require
   if (!REGEX_TELEFONE_NUMERO.test(digits)) return "Número deve conter apenas números.";
   if (digits.length < MIN_LEN_NUMERO_TELEFONE) return "Número deve ter no mínimo 8 dígitos.";
   if (digits.length > MAX_LEN_NUMERO_TELEFONE) return "Número deve ter no máximo 20 caracteres.";
+  return undefined;
+}
+
+/** PIS/PASEP: opcional. Quando preenchido, 11 dígitos (sem máscara). Front envia só dígitos. */
+export function validatePisPasep(value: string | null | undefined, required = false): ValidationResult {
+  const v = (value ?? "").trim();
+  const digits = v.replace(/\D/g, "");
+  if (digits.length === 0) return required ? "PIS/PASEP é obrigatório." : undefined;
+  if (!REGEX_TELEFONE_NUMERO.test(digits)) return "PIS/PASEP deve conter apenas números.";
+  if (digits.length !== LEN_PIS_PASEP) return "PIS/PASEP deve ter 11 dígitos.";
   return undefined;
 }
 
@@ -369,6 +422,16 @@ export function validateDescricaoFeriado(value: string | null | undefined, requi
   return undefined;
 }
 
+/** Matrícula - ContratoFuncionarioRequest (opcional, máx. 50) */
+export const MAX_LEN_MATRICULA = 50;
+
+export function validateMatricula(value: string | null | undefined, required = false): ValidationResult {
+  const v = (value ?? "").trim();
+  if (v.length === 0) return required ? "Matrícula é obrigatória." : undefined;
+  if (v.length > MAX_LEN_MATRICULA) return "Matrícula deve ter no máximo 50 caracteres.";
+  return undefined;
+}
+
 /** Cargo - ContratoFuncionarioRequest (mín. 2, máx. 255) */
 export const MIN_LEN_CARGO = 2;
 export const MAX_LEN_CARGO = 255;
@@ -437,65 +500,73 @@ export function validateDataAdmissao(value: string | null | undefined, required 
 
 // ========== Textos "Esperado" (exibidos abaixo do campo) — espelho da API ==========
 
+/** Mensagens "Esperado" — exatamente o que a validação do front exige (espelho dos validadores). */
 export const FIELD_EXPECTED: Record<string, string> = {
-  username: "Apenas letras minúsculas, números, . e - (mín. 2 e máx. 255 caracteres).",
-  email: "Formato de e-mail válido (máx. 255 caracteres).",
-  senha: "Mín. 6 caracteres, ao menos 1 letra maiúscula e 1 número ou pontuação.",
-  valor: "Credencial: mín. 2 e máx. 255 caracteres (e-mail, usuário, CPF, etc.).",
-  credencial: "Credencial: mín. 2 e máx. 255 caracteres (e-mail, usuário, CPF, etc.).",
-  cpf: "11 dígitos, com ou sem máscara (000.000.000-00).",
-  cnpj: "14 dígitos, com ou sem formatação.",
-  razaoSocial: "Razão social (mín. 2 e máx. 255 caracteres).",
-  nomeCompleto: "Nome completo (mín. 2 e máx. 255 caracteres).",
-  primeiroNome: "Primeiro nome (mín. 2 e máx. 100 caracteres).",
-  ultimoNome: "Último nome (mín. 2 e máx. 100 caracteres).",
-  rua: "Apenas letras, números, espaços e pontuação (mín. 2 e máx. 255).",
-  numero: "Apenas números (mín. 1 e máx. 20).",
-  numeroEndereco: "Apenas números (1 a 9999, máx. 4 dígitos).",
-  complemento: "Opcional. Letras, números, espaços e pontuação (máx. 255).",
-  bairro: "Apenas letras, números, espaços e pontuação (mín. 2 e máx. 255).",
-  cidade: "Apenas letras, números, espaços e pontuação (mín. 2 e máx. 255).",
-  uf: "Exatamente 2 letras (ex: SP).",
-  cep: "8 dígitos, com ou sem hífen (12345-678).",
+  username: "Apenas letras minúsculas, números, . e - (mín. 2, máx. 255).",
+  email: "E-mail válido (máx. 255 caracteres).",
+  senha: "Mín. 6 caracteres, ao menos 1 maiúscula e 1 número ou pontuação.",
+  valor: "Conforme o tipo: e-mail, usuário, CPF, CNPJ ou telefone.",
+  credencial: "Conforme o tipo: e-mail, usuário, CPF, CNPJ ou telefone.",
+  cpf: "11 dígitos.",
+  cnpj: "14 caracteres (12 alfanuméricos + 2 dígitos).",
+  telefone: "11 dígitos (DDD + número).",
+  razaoSocial: "Mín. 2 e máx. 255 caracteres.",
+  nomeCompleto: "Mín. 2 e máx. 255 caracteres.",
+  primeiroNome: "Mín. 2 e máx. 100 caracteres.",
+  ultimoNome: "Mín. 2 e máx. 100 caracteres.",
+  rua: "Letras, números, espaços e pontuação (mín. 2, máx. 255).",
+  numero: "Apenas números (1 a 4 dígitos).",
+  numeroEndereco: "Apenas números (1 a 4 dígitos).",
+  complemento: "Opcional. Máx. 255 caracteres.",
+  bairro: "Letras, números, espaços e pontuação (mín. 2, máx. 255).",
+  cidade: "Letras, números, espaços e pontuação (mín. 2, máx. 255).",
+  uf: "2 letras (ex: SP).",
+  cep: "8 dígitos.",
   codigoPais: "Apenas números (máx. 10, ex: 55).",
-  ddd: "Apenas números (mín. 2 e máx. 5 dígitos, ex: 11).",
-  numeroTelefone: "Apenas números (mín. 8 e máx. 20 dígitos).",
-  telefone: "Apenas números (máx. 20, ex: 999999999).",
-  codigo: "Código de 6 dígitos enviado por e-mail.",
+  ddd: "Apenas números (mín. 2, máx. 5, ex: 11).",
+  numeroTelefone: "Apenas números (mín. 8, máx. 20 dígitos).",
+  codigo: "6 dígitos (código enviado por e-mail).",
   senhaNova: "Mín. 6 caracteres, 1 maiúscula e 1 número ou pontuação.",
-  confirmarSenha: "Deve ser igual à senha.",
-  motivo: "Motivo da reprovação (mín. 2 e máx. 500 caracteres).",
-  justificativa: "Justificativa obrigatória (mín. 1 e máx. 500 caracteres).",
-  data: "Data no formato da API (yyyy-MM-dd).",
-  time: "Horário no formato HH:mm.",
-  horario: "Horário no formato HH:mm.",
-  cargaDiariaPadrao: "Duração no formato HH:mm (ex: 08:00).",
-  cargaSemanalPadrao: "Duração no formato HH:mm (ex: 44:00).",
-  toleranciaPadrao: "Duração no formato HH:mm (ex: 00:00).",
-  intervaloPadrao: "Duração no formato HH:mm (ex: 01:00).",
-  timezone: "Timezone (ex: America/Sao_Paulo, máx. 50 caracteres).",
-  nome: "Nome (mín. 2 e máx. 255 caracteres).",
-  descricao: "Descrição (mín. 2 e máx. 500 caracteres para geofence; mín. 2 e máx. 255 para feriado).",
-  descricaoFeriado: "Descrição (mín. 2 e máx. 255 caracteres).",
-  cargo: "Cargo (mín. 2 e máx. 255 caracteres).",
+  confirmarSenha: "Igual à senha.",
+  motivo: "Mín. 2 e máx. 500 caracteres.",
+  justificativa: "Mín. 1 e máx. 500 caracteres.",
+  observacao: "Opcional. Máx. 500 caracteres.",
+  data: "Data (yyyy-MM-dd).",
+  time: "Horário HH:mm.",
+  horario: "Horário HH:mm.",
+  cargaDiariaPadrao: "Duração HH:mm (ex: 08:00).",
+  cargaSemanalPadrao: "Duração HH:mm (ex: 44:00).",
+  toleranciaPadrao: "Duração HH:mm (ex: 00:00).",
+  intervaloPadrao: "Duração HH:mm (ex: 01:00).",
+  timezone: "Timezone (ex: America/Sao_Paulo, máx. 50).",
+  nome: "Mín. 2 e máx. 255 caracteres.",
+  descricao: "Mín. 2 e máx. 500 caracteres (geofence) ou máx. 255 (feriado).",
+  descricaoFeriado: "Mín. 2 e máx. 255 caracteres.",
+  cargo: "Mín. 2 e máx. 255 caracteres.",
   latitude: "Número entre -90 e 90.",
   longitude: "Número entre -180 e 180.",
-  raioMetros: "Raio em metros (entre 1 e 50000).",
+  raioMetros: "Raio em metros (1 a 50000).",
   totalDiasVencimento: "Número inteiro positivo (ex: 365).",
   tipoFeriadoId: "Selecione o tipo (Estadual ou Municipal).",
   funcionarioId: "Selecione o funcionário.",
   tipoAfastamentoId: "Selecione o tipo de afastamento.",
-  dataInicio: "Data de início (formato yyyy-MM-dd).",
-  dataFim: "Data de fim, opcional (formato yyyy-MM-dd).",
-  dataAdmissao: "Data de admissão (formato yyyy-MM-dd).",
+  dataInicio: "Data início (yyyy-MM-dd).",
+  dataFim: "Data fim, opcional (yyyy-MM-dd).",
+  dataAdmissao: "Data de admissão (yyyy-MM-dd).",
+  dataNascimento: "Data (yyyy-MM-dd, opcional).",
+  dataDemissao: "Data (yyyy-MM-dd, opcional).",
+  matricula: "Opcional. Máx. 50 caracteres.",
+  departamento: "Opcional. Máx. 255 caracteres.",
+  pisPasep: "11 dígitos (opcional).",
+  tempoDescansoEntreJornada: "Duração HH:mm (opcional).",
   salarioMensal: "Valor decimal (ex: 0,00).",
   salarioHora: "Valor decimal (ex: 0,00).",
   tipoContratoId: "Selecione o tipo de contrato.",
   tipoEscalaJornadaId: "Selecione o tipo de escala jornada.",
-  cargaHorariaDiaria: "Duração no formato HH:mm (ex: 08:00).",
-  cargaHorariaSemanal: "Duração no formato HH:mm (ex: 44:00).",
-  entradaPadrao: "Horário no formato HH:mm.",
-  saidaPadrao: "Horário no formato HH:mm.",
+  cargaHorariaDiaria: "Duração HH:mm (ex: 08:00).",
+  cargaHorariaSemanal: "Duração HH:mm (ex: 44:00).",
+  entradaPadrao: "Horário HH:mm.",
+  saidaPadrao: "Horário HH:mm.",
 };
 
 export function getFieldExpected(key: string): string {
