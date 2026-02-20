@@ -42,6 +42,9 @@ import {
   validateUf,
   validateCep,
   validateDurationHhmm,
+  validateDurationHhmmCargaDiaria,
+  validateDurationHhmmIntervalo,
+  validateDurationHhmmTolerancia,
   validateTimezone,
 } from "@/lib/validations";
 import { FieldExpectedStatus } from "@/components/ui/field-with-expected";
@@ -54,8 +57,8 @@ import {
   TIPO_CONTRATO_OPCOES,
   TIPO_ESCALA_JORNADA_OPCOES,
 } from "@/types/empresa";
-import { durationToHHmm, hhmmToDuration } from "@/lib/duration";
-import { formatCpf, formatCnpj, formatTitleCase, maskCepInput, maskDddInput, maskNumeroTelefoneInput, maskNumeroEnderecoInput } from "@/lib/format";
+import { durationToHHmm, hhmmToDuration, clampDurationHHmmTo44, clampDurationHHmmTo6, clampDurationHHmmTo12 } from "@/lib/duration";
+import { formatCpf, formatCnpj, formatTitleCase, maskCepInput, maskDddInput, maskNumeroTelefoneInput, maskNumeroEnderecoInput, maskUsernameInput, maskEmailInput } from "@/lib/format";
 import { useEstadosCidades } from "@/lib/useEstadosCidades";
 
 interface ModalPerfilEmpresaProps {
@@ -91,9 +94,16 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
     permitirAjustePontoDireto: data.permitirAjustePontoDireto ?? false,
   });
   const cidades = getCidadesByUf(form.uf);
+  const [durationDisplays, setDurationDisplays] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (open && data) {
+      setDurationDisplays({
+        cargaDiariaPadrao: durationToHHmm(data.cargaDiariaPadrao ?? ""),
+        cargaSemanalPadrao: durationToHHmm(data.cargaSemanalPadrao ?? ""),
+        toleranciaPadrao: durationToHHmm(data.toleranciaPadrao ?? "PT0S"),
+        intervaloPadrao: durationToHHmm(data.intervaloPadrao ?? ""),
+      });
       setForm({
         username: data.username ?? "",
         email: data.email ?? "",
@@ -155,9 +165,9 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
         ["cidade", form.cidade, (v) => validateCidade(v, true)],
         ["uf", form.uf, (v) => validateUf(v, true)],
         ["cep", form.cep, (v) => validateCep(v, true)],
-        ["cargaDiariaPadrao", durationToHHmm(form.cargaDiariaPadrao ?? ""), (v) => validateDurationHhmm(v, true, "Carga diária")],
+        ["cargaDiariaPadrao", durationToHHmm(form.cargaDiariaPadrao ?? ""), (v) => validateDurationHhmmCargaDiaria(v)],
         ["cargaSemanalPadrao", durationToHHmm(form.cargaSemanalPadrao ?? ""), (v) => validateDurationHhmm(v, true, "Carga semanal")],
-        ["toleranciaPadrao", durationToHHmm(form.toleranciaPadrao ?? "PT0S"), (v) => validateDurationHhmm(v, true, "Tolerância")],
+        ["toleranciaPadrao", durationToHHmm(form.toleranciaPadrao ?? "PT0S"), (v) => validateDurationHhmmTolerancia(v, true)],
         ["intervaloPadrao", durationToHHmm(form.intervaloPadrao ?? ""), (v) => validateDurationHhmm(v, true, "Intervalo")],
         ["timezone", form.timezone, (v) => validateTimezone(v, true)],
       ]);
@@ -299,7 +309,7 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
                   <Label className="text-sm font-medium" required>Username</Label>
                   <Input
                     value={form.username}
-                    onChange={(e) => { setForm((p) => ({ ...p, username: e.target.value })); handleChange("username", e.target.value, (v) => validateUsername(v, true)); }}
+                    onChange={(e) => { const next = maskUsernameInput(e.target.value); setForm((p) => ({ ...p, username: next })); handleChange("username", next, (v) => validateUsername(v, true)); }}
                     onBlur={() => handleBlur("username", form.username, (v) => validateUsername(v, true))}
                     className="mt-1"
                     aria-invalid={!!getError("username")}
@@ -311,7 +321,7 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
                   <Input
                     type="email"
                     value={form.email}
-                    onChange={(e) => { setForm((p) => ({ ...p, email: e.target.value })); handleChange("email", e.target.value, (v) => validateEmail(v, true)); }}
+                    onChange={(e) => { const next = maskEmailInput(e.target.value); setForm((p) => ({ ...p, email: next })); handleChange("email", next, (v) => validateEmail(v, true)); }}
                     onBlur={() => handleBlur("email", form.email, (v) => validateEmail(v, true))}
                     className="mt-1"
                     aria-invalid={!!getError("email")}
@@ -328,7 +338,7 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
                   <Label className="text-sm font-medium" required>Código País</Label>
                   <Input
                     value={form.codigoPais}
-                    onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 10); setForm((p) => ({ ...p, codigoPais: v })); handleChange("codigoPais", v, (x) => validateCodigoPais(x, true)); }}
+                    onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 3); setForm((p) => ({ ...p, codigoPais: v })); handleChange("codigoPais", v, (x) => validateCodigoPais(x, true)); }}
                     onBlur={() => handleBlur("codigoPais", form.codigoPais, (v) => validateCodigoPais(v, true))}
                     placeholder="55"
                     className="mt-1"
@@ -474,11 +484,12 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
               <div>
                 <Label className="text-sm font-medium" required>Carga Diária Padrão</Label>
                 <Input
-                  value={durationToHHmm(form.cargaDiariaPadrao ?? "")}
-                  onChange={(e) => { const v = e.target.value; setForm((p) => ({ ...p, cargaDiariaPadrao: hhmmToDuration(v) })); handleChange("cargaDiariaPadrao", v, (x) => validateDurationHhmm(x, true, "Carga diária")); }}
-                  onBlur={() => handleBlur("cargaDiariaPadrao", durationToHHmm(form.cargaDiariaPadrao ?? ""), (v) => validateDurationHhmm(v, true, "Carga diária"))}
+                  value={durationDisplays.cargaDiariaPadrao ?? durationToHHmm(form.cargaDiariaPadrao ?? "")}
+                  onChange={(e) => { const v = clampDurationHHmmTo12(e.target.value); setDurationDisplays((p) => ({ ...p, cargaDiariaPadrao: v })); handleChange("cargaDiariaPadrao", v, (x) => validateDurationHhmmCargaDiaria(x)); }}
+                  onBlur={() => { const d = durationDisplays.cargaDiariaPadrao ?? durationToHHmm(form.cargaDiariaPadrao ?? ""); const iso = hhmmToDuration(d); setForm((p) => ({ ...p, cargaDiariaPadrao: iso })); setDurationDisplays((p) => ({ ...p, cargaDiariaPadrao: durationToHHmm(iso) })); handleBlur("cargaDiariaPadrao", durationToHHmm(iso), (v) => validateDurationHhmmCargaDiaria(v)); }}
                   placeholder="08:00"
                   className="mt-1"
+                  maxLength={5}
                   aria-invalid={!!getError("cargaDiariaPadrao")}
                 />
                 <FieldExpectedStatus fieldKey="cargaDiariaPadrao" value={durationToHHmm(form.cargaDiariaPadrao ?? "")} error={getError("cargaDiariaPadrao")} touched={getTouched("cargaDiariaPadrao")} />
@@ -486,11 +497,12 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
               <div>
                 <Label className="text-sm font-medium" required>Carga Semanal Padrão</Label>
                 <Input
-                  value={durationToHHmm(form.cargaSemanalPadrao ?? "")}
-                  onChange={(e) => { const v = e.target.value; setForm((p) => ({ ...p, cargaSemanalPadrao: hhmmToDuration(v) })); handleChange("cargaSemanalPadrao", v, (x) => validateDurationHhmm(x, true, "Carga semanal")); }}
-                  onBlur={() => handleBlur("cargaSemanalPadrao", durationToHHmm(form.cargaSemanalPadrao ?? ""), (v) => validateDurationHhmm(v, true, "Carga semanal"))}
+                  value={durationDisplays.cargaSemanalPadrao ?? durationToHHmm(form.cargaSemanalPadrao ?? "")}
+                  onChange={(e) => { const v = clampDurationHHmmTo44(e.target.value); setDurationDisplays((p) => ({ ...p, cargaSemanalPadrao: v })); handleChange("cargaSemanalPadrao", v, (x) => validateDurationHhmm(x, true, "Carga semanal")); }}
+                  onBlur={() => { const d = durationDisplays.cargaSemanalPadrao ?? durationToHHmm(form.cargaSemanalPadrao ?? ""); const iso = hhmmToDuration(d); setForm((p) => ({ ...p, cargaSemanalPadrao: iso })); setDurationDisplays((p) => ({ ...p, cargaSemanalPadrao: durationToHHmm(iso) })); handleBlur("cargaSemanalPadrao", durationToHHmm(iso), (v) => validateDurationHhmm(v, true, "Carga semanal")); }}
                   placeholder="44:00"
                   className="mt-1"
+                  maxLength={5}
                   aria-invalid={!!getError("cargaSemanalPadrao")}
                 />
                 <FieldExpectedStatus fieldKey="cargaSemanalPadrao" value={durationToHHmm(form.cargaSemanalPadrao ?? "")} error={getError("cargaSemanalPadrao")} touched={getTouched("cargaSemanalPadrao")} />
@@ -498,11 +510,12 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
               <div>
                 <Label className="text-sm font-medium" required>Tolerância Padrão</Label>
                 <Input
-                  value={durationToHHmm(form.toleranciaPadrao ?? "PT0S")}
-                  onChange={(e) => { const v = e.target.value; setForm((p) => ({ ...p, toleranciaPadrao: hhmmToDuration(v) || "PT0S" })); handleChange("toleranciaPadrao", v, (x) => validateDurationHhmm(x, true)); }}
-                  onBlur={() => handleBlur("toleranciaPadrao", durationToHHmm(form.toleranciaPadrao ?? "PT0S"), (v) => validateDurationHhmm(v, true))}
+                  value={durationDisplays.toleranciaPadrao ?? durationToHHmm(form.toleranciaPadrao ?? "PT0S")}
+                  onChange={(e) => { const v = clampDurationHHmmTo6(e.target.value); setDurationDisplays((p) => ({ ...p, toleranciaPadrao: v })); handleChange("toleranciaPadrao", v, (x) => validateDurationHhmmTolerancia(x, true)); }}
+                  onBlur={() => { const d = durationDisplays.toleranciaPadrao ?? durationToHHmm(form.toleranciaPadrao ?? "PT0S"); const iso = hhmmToDuration(d) || "PT0S"; setForm((p) => ({ ...p, toleranciaPadrao: iso })); setDurationDisplays((p) => ({ ...p, toleranciaPadrao: durationToHHmm(iso) })); handleBlur("toleranciaPadrao", durationToHHmm(iso), (v) => validateDurationHhmmTolerancia(v, true)); }}
                   placeholder="00:00"
                   className="mt-1"
+                  maxLength={5}
                   aria-invalid={!!getError("toleranciaPadrao")}
                 />
                 <FieldExpectedStatus fieldKey="toleranciaPadrao" value={durationToHHmm(form.toleranciaPadrao ?? "PT0S")} error={getError("toleranciaPadrao")} touched={getTouched("toleranciaPadrao")} />
@@ -510,11 +523,12 @@ function ModalPerfilEmpresa({ open, onOpenChange, data }: ModalPerfilEmpresaProp
               <div>
                 <Label className="text-sm font-medium" required>Intervalo Padrão</Label>
                 <Input
-                  value={durationToHHmm(form.intervaloPadrao ?? "")}
-                  onChange={(e) => { const v = e.target.value; setForm((p) => ({ ...p, intervaloPadrao: hhmmToDuration(v) })); handleChange("intervaloPadrao", v, (x) => validateDurationHhmm(x, true, "Intervalo")); }}
-                  onBlur={() => handleBlur("intervaloPadrao", durationToHHmm(form.intervaloPadrao ?? ""), (v) => validateDurationHhmm(v, true, "Intervalo"))}
+                  value={durationDisplays.intervaloPadrao ?? durationToHHmm(form.intervaloPadrao ?? "")}
+                  onChange={(e) => { const v = clampDurationHHmmTo6(e.target.value); setDurationDisplays((p) => ({ ...p, intervaloPadrao: v })); handleChange("intervaloPadrao", v, (x) => validateDurationHhmmIntervalo(x)); }}
+                  onBlur={() => { const d = durationDisplays.intervaloPadrao ?? durationToHHmm(form.intervaloPadrao ?? ""); const iso = hhmmToDuration(d); setForm((p) => ({ ...p, intervaloPadrao: iso })); setDurationDisplays((p) => ({ ...p, intervaloPadrao: durationToHHmm(iso) })); handleBlur("intervaloPadrao", durationToHHmm(iso), (v) => validateDurationHhmmIntervalo(v)); }}
                   placeholder="01:00"
                   className="mt-1"
+                  maxLength={5}
                   aria-invalid={!!getError("intervaloPadrao")}
                 />
                 <FieldExpectedStatus fieldKey="intervaloPadrao" value={durationToHHmm(form.intervaloPadrao ?? "")} error={getError("intervaloPadrao")} touched={getTouched("intervaloPadrao")} />

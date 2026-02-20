@@ -248,7 +248,7 @@ export default function BancoHorasPage() {
         </>
       )}
 
-      <Dialog open={compensacaoOpen} onOpenChange={setCompensacaoOpen}>
+      <Dialog open={compensacaoOpen} onOpenChange={(o) => { setCompensacaoOpen(o); if (!o) { queryClient.invalidateQueries({ queryKey: ["empresa", "banco-horas-resumo"] }); queryClient.invalidateQueries({ queryKey: ["empresa", "banco-horas-historico"] }); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Registrar compensação</DialogTitle>
@@ -285,7 +285,7 @@ export default function BancoHorasPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={fechamentoOpen} onOpenChange={setFechamentoOpen}>
+      <Dialog open={fechamentoOpen} onOpenChange={(o) => { setFechamentoOpen(o); if (!o) { queryClient.invalidateQueries({ queryKey: ["empresa", "banco-horas-resumo"] }); queryClient.invalidateQueries({ queryKey: ["empresa", "banco-horas-historico"] }); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Fechamento de banco de horas</DialogTitle>
@@ -312,7 +312,7 @@ export default function BancoHorasPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setFechamentoOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => { setFechamentoOpen(false); queryClient.invalidateQueries({ queryKey: ["empresa", "banco-horas-resumo"] }); queryClient.invalidateQueries({ queryKey: ["empresa", "banco-horas-historico"] }); }}>Cancelar</Button>
             <Button
               disabled={fechamentoMutation.isPending}
               onClick={() =>

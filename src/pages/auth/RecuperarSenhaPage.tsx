@@ -9,6 +9,7 @@ import { FieldWithExpected } from "@/components/ui/field-with-expected";
 import { Clock, ArrowLeft, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useValidation } from "@/hooks/useValidation";
+import { maskEmailInput } from "@/lib/format";
 import { validateEmail, validateCodigoRecuperacao, validateSenha, getFieldExpected } from "@/lib/validations";
 
 type Step = "email" | "codigo" | "nova-senha" | "sucesso";
@@ -94,7 +95,7 @@ export default function RecuperarSenhaPage() {
               <CardContent>
                 <form onSubmit={handleEnviarEmail} className="space-y-4">
                   <FieldWithExpected name="email" label="Email" required expected={getFieldExpected("email")} error={getError("email")} showValid={email.trim().length > 0}>
-                    <Input id="email" type="email" placeholder="seu@email.com" value={email} onChange={(e) => { setEmail(e.target.value); handleChange("email", e.target.value, (v) => validateEmail(v, true)); }} onBlur={() => handleBlur("email", email, (v) => validateEmail(v, true))} aria-invalid={!!getError("email")} className="mt-1" />
+                    <Input id="email" type="email" placeholder="seu@email.com" value={email} onChange={(e) => { const next = maskEmailInput(e.target.value); setEmail(next); handleChange("email", next, (v) => validateEmail(v, true)); }} onBlur={() => handleBlur("email", email, (v) => validateEmail(v, true))} aria-invalid={!!getError("email")} className="mt-1" />
                   </FieldWithExpected>
                   <Button type="submit" className="w-full" disabled={loading}>{loading ? "Enviando..." : "Enviar código"}</Button>
                 </form>

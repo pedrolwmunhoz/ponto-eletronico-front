@@ -59,7 +59,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useValidation } from "@/hooks/useValidation";
-import { formatCpf, formatSalarioDisplay, formatTelefoneNumero, formatTitleCase, maskCpfInput, maskDddInput, maskNumeroTelefoneInput, maskPisPasepInput } from "@/lib/format";
+import { formatCpf, formatSalarioDisplay, formatTelefoneNumero, formatTitleCase, maskCpfInput, maskDddInput, maskNumeroTelefoneInput, maskPisPasepInput, maskUsernameInput, maskEmailInput } from "@/lib/format";
 import type { ValidationResult } from "@/lib/validations";
 import {
   validateUsername,
@@ -80,6 +80,9 @@ import {
   validatePisPasep,
   validateSalarioObrigatorio,
   validateDurationHhmm,
+  validateDurationHhmmCargaDiaria,
+  validateDurationHhmmIntervalo,
+  validateDurationHhmmTolerancia,
   validateHorario,
   validateRequiredSelect,
   getFieldExpected,
@@ -164,7 +167,7 @@ const emptyJornada = (): JornadaFuncionarioConfigRequest => ({
   gravaGeoObrigatoria: false,
 });
 
-import { durationToHHmm, hhmmToDuration } from "@/lib/duration";
+import { durationToHHmm, hhmmToDuration, clampDurationHHmmTo44, clampDurationHHmmTo6, clampDurationHHmmTo12 } from "@/lib/duration";
 
 export default function FuncionariosPage() {
   const { toast } = useToast();
@@ -192,6 +195,7 @@ export default function FuncionariosPage() {
   const [editPrimeiroNome, setEditPrimeiroNome] = useState(false);
   const [editUltimoNome, setEditUltimoNome] = useState(false);
   const [editUsername, setEditUsername] = useState(false);
+  const [durationDisplays, setDurationDisplays] = useState<Record<string, string>>({});
   const refPrimeiroNome = useRef<HTMLDivElement>(null);
   const refUltimoNome = useRef<HTMLDivElement>(null);
   const refUsername = useRef<HTMLDivElement>(null);
@@ -357,6 +361,7 @@ export default function FuncionariosPage() {
       jornadaFuncionarioConfig: emptyJornada(),
       geofenceIds: [],
     });
+    setDurationDisplays({});
     setAtivarTelefone(false);
     setAtivarContrato(false);
     setAtivarJornada(false);
@@ -417,6 +422,17 @@ export default function FuncionariosPage() {
           : emptyJornada(),
         geofenceIds: p.geofenceIds ?? [],
       });
+      setDurationDisplays(
+        j
+          ? {
+              cargaHorariaDiaria: durationToHHmm(j.cargaHorariaDiaria ?? ""),
+              cargaHorariaSemanal: durationToHHmm(j.cargaHorariaSemanal ?? ""),
+              toleranciaPadrao: durationToHHmm(j.toleranciaPadrao ?? "PT0S"),
+              intervaloPadrao: durationToHHmm(j.intervaloPadrao ?? ""),
+              tempoDescansoEntreJornada: j.tempoDescansoEntreJornada ? durationToHHmm(j.tempoDescansoEntreJornada) : "",
+            }
+          : {},
+      );
       const salM = p.contratoFuncionario?.salarioMensal;
       const salH = p.contratoFuncionario?.salarioHora;
       setSalarioMensalInput(digitsFromSalario(salM ?? 0));
@@ -513,7 +529,7 @@ export default function FuncionariosPage() {
       ...(ativarJornada && form.jornadaFuncionarioConfig
         ? ([
             ["tipoEscalaJornadaId", form.jornadaFuncionarioConfig.tipoEscalaJornadaId ? String(form.jornadaFuncionarioConfig.tipoEscalaJornadaId) : "", (v: unknown) => validateRequiredSelect(v as string, "Tipo de escala jornada é obrigatório.")],
-            ["cargaHorariaDiaria", durationToHHmm(form.jornadaFuncionarioConfig.cargaHorariaDiaria ?? ""), (v: unknown) => validateDurationHhmm(v as string, true, "Carga diária")],
+            ["cargaHorariaDiaria", durationToHHmm(form.jornadaFuncionarioConfig.cargaHorariaDiaria ?? ""), (v: unknown) => validateDurationHhmmCargaDiaria(v as string)],
             ["cargaHorariaSemanal", durationToHHmm(form.jornadaFuncionarioConfig.cargaHorariaSemanal ?? ""), (v: unknown) => validateDurationHhmm(v as string, true, "Carga semanal")],
             ["intervaloPadrao", durationToHHmm(form.jornadaFuncionarioConfig.intervaloPadrao ?? ""), (v: unknown) => validateDurationHhmm(v as string, true, "Intervalo")],
             ["entradaPadrao", form.jornadaFuncionarioConfig.entradaPadrao ?? "", (v: unknown) => validateHorario(v as string, true, "Entrada padrão")],
@@ -572,7 +588,7 @@ export default function FuncionariosPage() {
       ...(ativarJornada && form.jornadaFuncionarioConfig
         ? ([
             ["tipoEscalaJornadaId", form.jornadaFuncionarioConfig.tipoEscalaJornadaId ? String(form.jornadaFuncionarioConfig.tipoEscalaJornadaId) : "", (v: unknown) => validateRequiredSelect(v as string, "Tipo de escala jornada é obrigatório.")],
-            ["cargaHorariaDiaria", durationToHHmm(form.jornadaFuncionarioConfig.cargaHorariaDiaria ?? ""), (v: unknown) => validateDurationHhmm(v as string, true, "Carga diária")],
+            ["cargaHorariaDiaria", durationToHHmm(form.jornadaFuncionarioConfig.cargaHorariaDiaria ?? ""), (v: unknown) => validateDurationHhmmCargaDiaria(v as string)],
             ["cargaHorariaSemanal", durationToHHmm(form.jornadaFuncionarioConfig.cargaHorariaSemanal ?? ""), (v: unknown) => validateDurationHhmm(v as string, true, "Carga semanal")],
             ["intervaloPadrao", durationToHHmm(form.jornadaFuncionarioConfig.intervaloPadrao ?? ""), (v: unknown) => validateDurationHhmm(v as string, true, "Intervalo")],
             ["entradaPadrao", form.jornadaFuncionarioConfig.entradaPadrao ?? "", (v: unknown) => validateHorario(v as string, true, "Entrada padrão")],
@@ -790,7 +806,7 @@ export default function FuncionariosPage() {
       </Card>
 
       {/* Dialog Criar / Editar funcionário */}
-      <Dialog open={formOpen !== null} onOpenChange={(open) => !open && setFormOpen(null)}>
+      <Dialog open={formOpen !== null} onOpenChange={(open) => { if (!open) { setFormOpen(null); queryClient.invalidateQueries({ queryKey: ["empresa", "funcionarios"] }); } }}>
         <DialogContent className="max-w-3xl w-[95vw] max-h-[92vh] min-h-[60vh] sm:min-h-[70vh] flex flex-col overflow-hidden px-4 py-4 sm:px-8 sm:py-6">
           <DialogHeader className="flex-shrink-0 pb-1 sm:pb-2">
             <DialogTitle className="text-base sm:text-lg">{formOpen === "create" ? "Novo funcionário" : "Editar funcionário"}</DialogTitle>
@@ -906,8 +922,9 @@ export default function FuncionariosPage() {
                       value={form.username}
                       disabled={!editUsername}
                       onChange={(e) => {
-                        setForm((prev) => ({ ...prev, username: e.target.value }));
-                        handleChange("username", e.target.value, (v) => validateUsername(v, true));
+                        const next = maskUsernameInput(e.target.value);
+                        setForm((prev) => ({ ...prev, username: next }));
+                        handleChange("username", next, (v) => validateUsername(v, true));
                       }}
                       onBlur={() => {
                         handleBlur("username", form.username ?? "", (v) => validateUsername(v, true));
@@ -966,8 +983,9 @@ export default function FuncionariosPage() {
                   type="email"
                   value={form.email}
                   onChange={(e) => {
-                    setForm((prev) => ({ ...prev, email: e.target.value }));
-                    handleChange("email", e.target.value, (v) => validateEmail(v, true));
+                    const next = maskEmailInput(e.target.value);
+                    setForm((prev) => ({ ...prev, email: next }));
+                    handleChange("email", next, (v) => validateEmail(v, true));
                   }}
                   onBlur={() => handleBlur("email", form.email ?? "", (v) => validateEmail(v, true))}
                   placeholder="email@empresa.com"
@@ -1007,7 +1025,7 @@ export default function FuncionariosPage() {
                     disabled={!ativarTelefone}
                     value={form.usuarioTelefone?.codigoPais ?? "55"}
                     onChange={(e) => {
-                      const v = e.target.value.replace(/\D/g, "").slice(0, 4) || "55";
+                      const v = e.target.value.replace(/\D/g, "").slice(0, 3) || "55";
                       setForm((prev) => ({
                         ...prev,
                         usuarioTelefone: {
@@ -1349,22 +1367,28 @@ export default function FuncionariosPage() {
                       <Label required>Carga diária</Label>
                       <Input
                         disabled={!ativarJornada}
-                        value={durationToHHmm(form.jornadaFuncionarioConfig.cargaHorariaDiaria ?? "")}
+                        value={durationDisplays.cargaHorariaDiaria ?? durationToHHmm(form.jornadaFuncionarioConfig.cargaHorariaDiaria ?? "")}
                         onChange={(e) => {
-                          const hhmm = e.target.value;
-                          const dur = hhmmToDuration(hhmm);
+                          const hhmm = clampDurationHHmmTo12(e.target.value);
+                          setDurationDisplays((p) => ({ ...p, cargaHorariaDiaria: hhmm }));
+                          handleChange("cargaHorariaDiaria", hhmm, (x) => validateDurationHhmmCargaDiaria(x));
+                        }}
+                        onBlur={() => {
+                          const d = durationDisplays.cargaHorariaDiaria ?? durationToHHmm(form.jornadaFuncionarioConfig?.cargaHorariaDiaria ?? "");
+                          const iso = hhmmToDuration(d);
                           setForm((prev) => ({
                             ...prev,
                             jornadaFuncionarioConfig: prev.jornadaFuncionarioConfig
-                              ? { ...prev.jornadaFuncionarioConfig, cargaHorariaDiaria: dur }
+                              ? { ...prev.jornadaFuncionarioConfig, cargaHorariaDiaria: iso }
                               : emptyJornada(),
                           }));
-                          handleChange("cargaHorariaDiaria", hhmm, (x) => validateDurationHhmm(x, true, "Carga diária"));
+                          setDurationDisplays((p) => ({ ...p, cargaHorariaDiaria: durationToHHmm(iso) }));
+                          handleBlur("cargaHorariaDiaria", durationToHHmm(iso), (x) => validateDurationHhmmCargaDiaria(x));
                         }}
-                        onBlur={() => handleBlur("cargaHorariaDiaria", durationToHHmm(form.jornadaFuncionarioConfig?.cargaHorariaDiaria ?? ""), (x) => validateDurationHhmm(x, true, "Carga diária"))}
                         placeholder="08:00"
+                        maxLength={5}
                       />
-                      <FieldExpectedStatus fieldKey="cargaHorariaDiaria" value={durationToHHmm(form.jornadaFuncionarioConfig?.cargaHorariaDiaria ?? "")} error={getError("cargaHorariaDiaria")} touched={getTouched("cargaHorariaDiaria")} />
+                      <FieldExpectedStatus fieldKey="cargaHorariaDiaria" value={durationDisplays.cargaHorariaDiaria ?? durationToHHmm(form.jornadaFuncionarioConfig?.cargaHorariaDiaria ?? "")} error={getError("cargaHorariaDiaria")} touched={getTouched("cargaHorariaDiaria")} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -1372,44 +1396,55 @@ export default function FuncionariosPage() {
                       <Label required>Carga semanal</Label>
                       <Input
                         disabled={!ativarJornada}
-                        value={durationToHHmm(form.jornadaFuncionarioConfig.cargaHorariaSemanal ?? "")}
+                        value={durationDisplays.cargaHorariaSemanal ?? durationToHHmm(form.jornadaFuncionarioConfig.cargaHorariaSemanal ?? "")}
                         onChange={(e) => {
-                          const hhmm = e.target.value;
-                          const dur = hhmmToDuration(hhmm);
+                          const hhmm = clampDurationHHmmTo44(e.target.value);
+                          setDurationDisplays((p) => ({ ...p, cargaHorariaSemanal: hhmm }));
+                          handleChange("cargaHorariaSemanal", hhmm, (x) => validateDurationHhmm(x, true, "Carga semanal"));
+                        }}
+                        onBlur={() => {
+                          const d = durationDisplays.cargaHorariaSemanal ?? durationToHHmm(form.jornadaFuncionarioConfig?.cargaHorariaSemanal ?? "");
+                          const iso = hhmmToDuration(d);
                           setForm((prev) => ({
                             ...prev,
                             jornadaFuncionarioConfig: prev.jornadaFuncionarioConfig
-                              ? { ...prev.jornadaFuncionarioConfig, cargaHorariaSemanal: dur }
+                              ? { ...prev.jornadaFuncionarioConfig, cargaHorariaSemanal: iso }
                               : emptyJornada(),
                           }));
-                          handleChange("cargaHorariaSemanal", hhmm, (x) => validateDurationHhmm(x, true, "Carga semanal"));
+                          setDurationDisplays((p) => ({ ...p, cargaHorariaSemanal: durationToHHmm(iso) }));
+                          handleBlur("cargaHorariaSemanal", durationToHHmm(iso), (x) => validateDurationHhmm(x, true, "Carga semanal"));
                         }}
-                        onBlur={() => handleBlur("cargaHorariaSemanal", durationToHHmm(form.jornadaFuncionarioConfig?.cargaHorariaSemanal ?? ""), (x) => validateDurationHhmm(x, true, "Carga semanal"))}
                         placeholder="44:00"
+                        maxLength={5}
                       />
-                      <FieldExpectedStatus fieldKey="cargaHorariaSemanal" value={durationToHHmm(form.jornadaFuncionarioConfig?.cargaHorariaSemanal ?? "")} error={getError("cargaHorariaSemanal")} touched={getTouched("cargaHorariaSemanal")} />
+                      <FieldExpectedStatus fieldKey="cargaHorariaSemanal" value={durationDisplays.cargaHorariaSemanal ?? durationToHHmm(form.jornadaFuncionarioConfig?.cargaHorariaSemanal ?? "")} error={getError("cargaHorariaSemanal")} touched={getTouched("cargaHorariaSemanal")} />
                     </div>
                     <div className="space-y-2">
                       <Label>Tolerância (opcional)</Label>
                       <Input
                         disabled={!ativarJornada}
-                        value={durationToHHmm(form.jornadaFuncionarioConfig.toleranciaPadrao ?? "PT0S")}
+                        value={durationDisplays.toleranciaPadrao ?? durationToHHmm(form.jornadaFuncionarioConfig.toleranciaPadrao ?? "PT0S")}
                         onChange={(e) => {
-                          const hhmm = e.target.value;
-                          const dur = hhmmToDuration(hhmm) || "PT0S";
+                          const hhmm = clampDurationHHmmTo6(e.target.value);
+                          setDurationDisplays((p) => ({ ...p, toleranciaPadrao: hhmm }));
+                          handleChange("toleranciaPadrao", hhmm, (x) => validateDurationHhmmTolerancia(x, false));
+                        }}
+                        onBlur={() => {
+                          const d = durationDisplays.toleranciaPadrao ?? durationToHHmm(form.jornadaFuncionarioConfig?.toleranciaPadrao ?? "PT0S");
+                          const iso = hhmmToDuration(d) || "PT0S";
                           setForm((prev) => ({
                             ...prev,
                             jornadaFuncionarioConfig: prev.jornadaFuncionarioConfig
-                              ? { ...prev.jornadaFuncionarioConfig, toleranciaPadrao: dur }
+                              ? { ...prev.jornadaFuncionarioConfig, toleranciaPadrao: iso }
                               : emptyJornada(),
                           }));
-                          handleChange("toleranciaPadrao", hhmm, (x) => validateDurationHhmm(x, false, "Tolerância"));
+                          setDurationDisplays((p) => ({ ...p, toleranciaPadrao: durationToHHmm(iso) }));
+                          handleBlur("toleranciaPadrao", durationToHHmm(iso), (x) => validateDurationHhmmTolerancia(x, false));
                         }}
-                        onBlur={() => handleBlur("toleranciaPadrao", durationToHHmm(form.jornadaFuncionarioConfig?.toleranciaPadrao ?? "PT0S"), (x) => validateDurationHhmm(x, false, "Tolerância"))}
                         placeholder="00:00"
                         aria-invalid={!!getError("toleranciaPadrao")}
                       />
-                      <FieldExpectedStatus fieldKey="toleranciaPadrao" value={durationToHHmm(form.jornadaFuncionarioConfig?.toleranciaPadrao ?? "PT0S")} error={getError("toleranciaPadrao")} touched={getTouched("toleranciaPadrao")} />
+                      <FieldExpectedStatus fieldKey="toleranciaPadrao" value={durationDisplays.toleranciaPadrao ?? durationToHHmm(form.jornadaFuncionarioConfig?.toleranciaPadrao ?? "PT0S")} error={getError("toleranciaPadrao")} touched={getTouched("toleranciaPadrao")} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -1417,44 +1452,56 @@ export default function FuncionariosPage() {
                       <Label required>Intervalo</Label>
                       <Input
                         disabled={!ativarJornada}
-                        value={durationToHHmm(form.jornadaFuncionarioConfig.intervaloPadrao ?? "")}
+                        value={durationDisplays.intervaloPadrao ?? durationToHHmm(form.jornadaFuncionarioConfig.intervaloPadrao ?? "")}
                         onChange={(e) => {
-                          const hhmm = e.target.value;
-                          const dur = hhmmToDuration(hhmm);
+                          const hhmm = clampDurationHHmmTo6(e.target.value);
+                          setDurationDisplays((p) => ({ ...p, intervaloPadrao: hhmm }));
+                          handleChange("intervaloPadrao", hhmm, (x) => validateDurationHhmmIntervalo(x));
+                        }}
+                        onBlur={() => {
+                          const d = durationDisplays.intervaloPadrao ?? durationToHHmm(form.jornadaFuncionarioConfig?.intervaloPadrao ?? "");
+                          const iso = hhmmToDuration(d);
                           setForm((prev) => ({
                             ...prev,
                             jornadaFuncionarioConfig: prev.jornadaFuncionarioConfig
-                              ? { ...prev.jornadaFuncionarioConfig, intervaloPadrao: dur }
+                              ? { ...prev.jornadaFuncionarioConfig, intervaloPadrao: iso }
                               : emptyJornada(),
                           }));
-                          handleChange("intervaloPadrao", hhmm, (x) => validateDurationHhmm(x, true, "Intervalo"));
+                          setDurationDisplays((p) => ({ ...p, intervaloPadrao: durationToHHmm(iso) }));
+                          handleBlur("intervaloPadrao", durationToHHmm(iso), (x) => validateDurationHhmmIntervalo(x));
                         }}
-                        onBlur={() => handleBlur("intervaloPadrao", durationToHHmm(form.jornadaFuncionarioConfig?.intervaloPadrao ?? ""), (x) => validateDurationHhmm(x, true, "Intervalo"))}
                         placeholder="01:00"
+                        maxLength={5}
                       />
-                      <FieldExpectedStatus fieldKey="intervaloPadrao" value={durationToHHmm(form.jornadaFuncionarioConfig?.intervaloPadrao ?? "")} error={getError("intervaloPadrao")} touched={getTouched("intervaloPadrao")} />
+                      <FieldExpectedStatus fieldKey="intervaloPadrao" value={durationDisplays.intervaloPadrao ?? durationToHHmm(form.jornadaFuncionarioConfig?.intervaloPadrao ?? "")} error={getError("intervaloPadrao")} touched={getTouched("intervaloPadrao")} />
                     </div>
                     <div className="space-y-2">
                       <Label>Descanso entre jornadas (opcional)</Label>
                       <Input
                         disabled={!ativarJornada}
-                        value={durationToHHmm(form.jornadaFuncionarioConfig.tempoDescansoEntreJornada ?? "")}
+                        value={durationDisplays.tempoDescansoEntreJornada ?? durationToHHmm(form.jornadaFuncionarioConfig.tempoDescansoEntreJornada ?? "")}
                         onChange={(e) => {
-                          const hhmm = e.target.value;
-                          const dur = hhmmToDuration(hhmm);
+                          const hhmm = clampDurationHHmmTo44(e.target.value);
+                          setDurationDisplays((p) => ({ ...p, tempoDescansoEntreJornada: hhmm }));
+                          handleChange("tempoDescansoEntreJornada", hhmm, (x) => validateDurationHhmm(x, false, "Descanso entre jornadas"));
+                        }}
+                        onBlur={() => {
+                          const d = durationDisplays.tempoDescansoEntreJornada ?? durationToHHmm(form.jornadaFuncionarioConfig?.tempoDescansoEntreJornada ?? "");
+                          const iso = d ? hhmmToDuration(d) : "";
                           setForm((prev) => ({
                             ...prev,
                             jornadaFuncionarioConfig: prev.jornadaFuncionarioConfig
-                              ? { ...prev.jornadaFuncionarioConfig, tempoDescansoEntreJornada: dur }
+                              ? { ...prev.jornadaFuncionarioConfig, tempoDescansoEntreJornada: iso || null }
                               : emptyJornada(),
                           }));
-                          handleChange("tempoDescansoEntreJornada", hhmm, (x) => validateDurationHhmm(x, false, "Descanso entre jornadas"));
+                          setDurationDisplays((p) => ({ ...p, tempoDescansoEntreJornada: iso ? durationToHHmm(iso) : "" }));
+                          handleBlur("tempoDescansoEntreJornada", iso ? durationToHHmm(iso) : "", (x) => validateDurationHhmm(x, false, "Descanso entre jornadas"));
                         }}
-                        onBlur={() => handleBlur("tempoDescansoEntreJornada", durationToHHmm(form.jornadaFuncionarioConfig?.tempoDescansoEntreJornada ?? ""), (x) => validateDurationHhmm(x, false, "Descanso entre jornadas"))}
                         placeholder="11:00"
+                        maxLength={5}
                         aria-invalid={!!getError("tempoDescansoEntreJornada")}
                       />
-                      <FieldExpectedStatus fieldKey="tempoDescansoEntreJornada" value={durationToHHmm(form.jornadaFuncionarioConfig?.tempoDescansoEntreJornada ?? "")} error={getError("tempoDescansoEntreJornada")} touched={getTouched("tempoDescansoEntreJornada")} />
+                      <FieldExpectedStatus fieldKey="tempoDescansoEntreJornada" value={durationDisplays.tempoDescansoEntreJornada ?? durationToHHmm(form.jornadaFuncionarioConfig?.tempoDescansoEntreJornada ?? "")} error={getError("tempoDescansoEntreJornada")} touched={getTouched("tempoDescansoEntreJornada")} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -1519,13 +1566,15 @@ export default function FuncionariosPage() {
               )}
             </TabsContent>
             <TabsContent value="geofences" className="space-y-3 pt-2 flex-1 min-h-0 overflow-y-auto overflow-x-hidden data-[state=inactive]:hidden sm:space-y-4 sm:pt-4 px-1 py-0.5">
-              <div className="flex items-center justify-between gap-2 rounded-lg border p-3 sm:p-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium sm:text-base">Incluir áreas de ponto</p>
-                  <p className="text-xs text-muted-foreground sm:text-sm">Ao ativar, as áreas selecionadas serão enviadas na request.</p>
+              {geofencesList.length > 0 && (
+                <div className="flex items-center justify-between gap-2 rounded-lg border p-3 sm:p-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium sm:text-base">Incluir áreas de ponto</p>
+                    <p className="text-xs text-muted-foreground sm:text-sm">Ao ativar, as áreas selecionadas serão enviadas na request.</p>
+                  </div>
+                  <Switch checked={ativarGeofences} onCheckedChange={setAtivarGeofences} className="shrink-0" />
                 </div>
-                <Switch checked={ativarGeofences} onCheckedChange={setAtivarGeofences} className="shrink-0" />
-              </div>
+              )}
               <p className="text-xs text-muted-foreground sm:text-sm">Selecione as áreas de ponto às quais o funcionário terá acesso.</p>
               {geofencesList.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhuma área de ponto cadastrada. Cadastre em Áreas de ponto.</p>
@@ -1559,7 +1608,7 @@ export default function FuncionariosPage() {
           </Tabs>
           </div>
           <DialogFooter className="flex-shrink-0 gap-2 pt-3 border-t mt-3 sm:pt-4 sm:mt-4">
-            <Button variant="outline" size="sm" onClick={() => setFormOpen(null)} className="text-xs sm:text-sm">
+            <Button variant="outline" size="sm" onClick={() => { setFormOpen(null); queryClient.invalidateQueries({ queryKey: ["empresa", "funcionarios"] }); }} className="text-xs sm:text-sm">
               Cancelar
             </Button>
             <Button
@@ -1644,8 +1693,9 @@ export default function FuncionariosPage() {
               type="email"
               value={emailNovo}
               onChange={(e) => {
-                setEmailNovo(e.target.value);
-                handleChange("resetEmailNovo", e.target.value, (v) => validateEmail(v, true));
+                const next = maskEmailInput(e.target.value);
+                setEmailNovo(next);
+                handleChange("resetEmailNovo", next, (v) => validateEmail(v, true));
               }}
               onBlur={() => handleBlur("resetEmailNovo", emailNovo, (v) => validateEmail(v, true))}
               placeholder="email@empresa.com"

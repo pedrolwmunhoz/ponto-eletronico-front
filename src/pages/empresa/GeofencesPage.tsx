@@ -183,6 +183,7 @@ export default function GeofencesPage() {
             if (!isOpen) {
               setAcessoParcialAtivo(false);
               setFuncionarioIds([]);
+              queryClient.invalidateQueries({ queryKey: ["empresa", "geofences"] });
             }
           }}
         >

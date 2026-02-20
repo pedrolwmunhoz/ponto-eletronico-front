@@ -30,7 +30,7 @@ import {
 import { tokenStorage } from "@/lib/token-storage";
 import type { PontoDiaResponse } from "@/types/empresa";
 import { ModalDetalharJornada } from "@/components/ponto/ModalDetalharJornada";
-import { ModalCriarRegistro } from "@/components/ponto/ModalCriarRegistro";
+import ModalCriarRegistro from "@/components/ponto/ModalCriarRegistro";
 
 const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
@@ -223,7 +223,7 @@ export default function CalendarioPontoPage() {
 
       <ModalDetalharJornada
         open={!!modalJornadaKey}
-        onOpenChange={(open) => !open && setModalJornadaKey(null)}
+        onOpenChange={(open) => { if (!open) { setModalJornadaKey(null); queryClient.invalidateQueries({ queryKey: ["funcionario", "ponto"] }); } }}
         jornada={jornadaForModal}
         modo="funcionario"
         onRemover={(registroId) => setRemoverRegistroId(registroId)}
@@ -238,7 +238,10 @@ export default function CalendarioPontoPage() {
         open={criarRegistroOpen}
         onOpenChange={(open) => {
           setCriarRegistroOpen(open);
-          if (!open) setCriarRegistroDataInicial(undefined);
+          if (!open) {
+            setCriarRegistroDataInicial(undefined);
+            queryClient.invalidateQueries({ queryKey: ["funcionario", "ponto"] });
+          }
         }}
         onSubmit={handleCriarRegistroSubmit}
         isLoading={registrarManualMutation.isPending}

@@ -11,7 +11,7 @@ import { FieldWithExpected } from "@/components/ui/field-with-expected";
 import { CheckCircle2, Clock, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useValidation } from "@/hooks/useValidation";
-import { maskCpfInput, maskCnpjInput, maskTelefoneInput } from "@/lib/format";
+import { maskCpfInput, maskCnpjInput, maskTelefoneInput, maskUsernameInput, maskEmailInput } from "@/lib/format";
 import { validateCredencialByTipo, validateSenha, getFieldExpected } from "@/lib/validations";
 import type { TipoCredencial } from "@/types/auth";
 
@@ -42,6 +42,8 @@ export default function LoginPage() {
     if (tipoCredencial === "CPF" && valor) setValor((v) => maskCpfInput(v));
     if (tipoCredencial === "CNPJ" && valor) setValor((v) => maskCnpjInput(v));
     if (tipoCredencial === "TELEFONE" && valor) setValor((v) => maskTelefoneInput(v));
+    if (tipoCredencial === "USERNAME" && valor) setValor((v) => maskUsernameInput(v));
+    if (tipoCredencial === "EMAIL" && valor) setValor((v) => maskEmailInput(v));
   }, [tipoCredencial]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -140,7 +142,11 @@ export default function LoginPage() {
                           ? maskCnpjInput(raw)
                           : tipoCredencial === "TELEFONE"
                             ? maskTelefoneInput(raw)
-                          : raw;
+                            : tipoCredencial === "USERNAME"
+                              ? maskUsernameInput(raw)
+                              : tipoCredencial === "EMAIL"
+                                ? maskEmailInput(raw)
+                                : raw;
                     setValor(next);
                     handleChange("valor", next, validateValor);
                   }}

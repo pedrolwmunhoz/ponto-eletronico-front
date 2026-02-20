@@ -239,7 +239,7 @@ export default function FeriadosPage() {
             Cadastre feriados estaduais e municipais. Feriados nacionais criados pelo admin também aparecem aqui.
           </p>
         </div>
-        <Dialog open={openCriar} onOpenChange={(o) => { setOpenCriar(o); if (!o) resetForm(); }}>
+        <Dialog open={openCriar} onOpenChange={(o) => { setOpenCriar(o); if (!o) { resetForm(); queryClient.invalidateQueries({ queryKey: ["empresa", "feriados"] }); } }}>
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus className="h-4 w-4" />
@@ -523,7 +523,7 @@ export default function FeriadosPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditarTarget(null)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => { setEditarTarget(null); queryClient.invalidateQueries({ queryKey: ["empresa", "feriados"] }); }}>Cancelar</Button>
             <Button onClick={handleEditar} disabled={editarMutation.isPending}>
               {editarMutation.isPending ? "Salvando..." : "Salvar"}
             </Button>

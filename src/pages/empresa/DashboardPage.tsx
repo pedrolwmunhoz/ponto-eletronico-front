@@ -1,8 +1,9 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { addDays, format, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Users, ClipboardList, Wallet, Clock } from "lucide-react";
+import { Users, ClipboardList, Wallet, Clock, Fingerprint } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -16,7 +17,8 @@ import {
   Legend,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getMetricasDia, getMetricasDiaPorPeriodo } from "@/lib/api-empresa";
+import { Button } from "@/components/ui/button";
+import { getMetricasDia, getMetricasDiaPorPeriodo, getAtividadesRecentes } from "@/lib/api-empresa";
 import { durationToMinutes } from "@/lib/duration";
 import type { MetricasDiariaEmpresaResponse } from "@/types/empresa";
 
@@ -58,10 +60,15 @@ export default function DashboardPage() {
     },
   });
 
-  const { data: listaMetricas } = useQuery({
+  const { data: listaMetricas, isLoading: isLoadingPeriodo } = useQuery({
     queryKey: ["empresa", "metricas-dia-por-periodo", dataInicio, dataFim],
     queryFn: () => getMetricasDiaPorPeriodo(dataInicio, dataFim),
     enabled: !!dataInicio && !!dataFim && dataInicio <= dataFim,
+  });
+
+  const { data: atividadesRecentes = [] } = useQuery({
+    queryKey: ["empresa", "atividades-recentes"],
+    queryFn: getAtividadesRecentes,
   });
 
   const chartData = useMemo(() => {
@@ -145,11 +152,17 @@ export default function DashboardPage() {
   /** Um ponto zerado para exibir os gráficos com eixo em 0 quando a resposta for vazia. */
   const chartDataOuZerado = chartData.length > 0 ? chartData : [{ dia: "-", totalDoDiaHoras: 0, acumHorasHoras: 0, totalPontoHoje: 0, acumPontos: 0, quantidadeFuncionarios: 0 }];
 
+  const ultimoChart = chartDataOuZerado.length > 0 ? chartDataOuZerado[chartDataOuZerado.length - 1] : null;
+  const totalMesHoras = ultimoChart ? formatMinutesToHours(Math.round(ultimoChart.acumHorasHoras * 60)) : "0h";
+  const registroMes = ultimoChart ? String(ultimoChart.acumPontos) : "0";
+
   const stats = [
+    { label: "Horas dia", value: metricas ? formatDuration(metricas.totalDoDia) : "0 h", icon: Wallet, color: "text-primary" },
+    { label: "Horas mês", value: totalMesHoras, icon: Wallet, color: "text-primary" },
+    { label: "Registros dia", value: metricas ? String(metricas.totalPontoHoje) : "0", icon: Fingerprint, color: "text-info" },
+    { label: "Registros mês", value: registroMes, icon: Fingerprint, color: "text-info" },
     { label: "Funcionários", value: metricas ? String(metricas.quantidadeFuncionarios) : "0", icon: Users, color: "text-primary" },
     { label: "Solicitações Pendentes", value: metricas ? String(metricas.solicitacoesPendentes) : "0", icon: ClipboardList, color: "text-warning" },
-    { label: "Total do dia", value: metricas ? formatDuration(metricas.totalDoDia) : "0 h", icon: Wallet, color: "text-success" },
-    { label: "Registros Hoje", value: metricas ? String(metricas.totalPontoHoje) : "0", icon: Clock, color: "text-info" },
   ];
 
   return (
@@ -159,16 +172,16 @@ export default function DashboardPage() {
         <p className="text-sm text-muted-foreground">Visão geral do ponto eletrônico</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {stats.map((stat) => (
-          <Card key={stat.label}>
+          <Card key={stat.label} className={["Horas dia", "Registros dia"].includes(stat.label) ? "hidden sm:block" : undefined}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">{stat.label}</CardTitle>
               <stat.icon className={`h-5 w-5 ${stat.color}`} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-foreground">
-                {isLoading ? "…" : stat.value}
+                {(isLoading || (["Horas mês", "Registros mês"].includes(stat.label) && isLoadingPeriodo)) ? "…" : stat.value}
               </div>
             </CardContent>
           </Card>
@@ -180,9 +193,32 @@ export default function DashboardPage() {
           <CardTitle className="font-display text-lg">Atividade Recente</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            {metricas ? `Métricas referente a ${metricas.dataRef}.` : "Nenhuma métrica cadastrada ainda (valores zerados)."}
-          </p>
+          <div className="space-y-2">
+            {atividadesRecentes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhum registro de ponto recente.</p>
+            ) : (
+              atividadesRecentes.map((a) => {
+                const horario = a.registradoEm
+                  ? new Date(a.registradoEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+                  : "—";
+                const entry = `${a.nomeCompleto} — ${horario} ✓`;
+                return (
+                  <div
+                    key={`${a.nomeCompleto}-${a.registradoEm}`}
+                    className="flex items-center justify-between rounded-md bg-muted/60 px-3 py-2 text-sm"
+                  >
+                    <span className="text-foreground">{entry}</span>
+                    <span className="text-xs text-green-600 font-medium">Geoloc. OK</span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <div className="flex justify-center mt-4">
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/empresa/espelho-ponto">Ver mais</Link>
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

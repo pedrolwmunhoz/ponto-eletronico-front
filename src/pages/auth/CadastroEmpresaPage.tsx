@@ -7,9 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FieldWithExpected } from "@/components/ui/field-with-expected";
+import { FieldWithExpected, FieldExpectedStatus } from "@/components/ui/field-with-expected";
 import { FieldError } from "@/components/ui/field-error";
-import { maskCnpjInput, maskCepInput, maskDddInput, maskNumeroTelefoneInput, maskNumeroEnderecoInput, formatTitleCase } from "@/lib/format";
+import { maskCnpjInput, maskCepInput, maskDddInput, maskNumeroTelefoneInput, maskNumeroEnderecoInput, formatTitleCase, maskUsernameInput, maskEmailInput } from "@/lib/format";
 import { useEstadosCidades } from "@/lib/useEstadosCidades";
 import { getFieldExpected } from "@/lib/validations";
 import { cn } from "@/lib/utils";
@@ -41,6 +41,23 @@ type PaisDdd = { codigo: string; fone: string; nome: string };
 
 function foneSemZerosEsquerda(fone: string): string {
   return (fone || "").replace(/^0+/, "") || "0";
+}
+
+/** Deriva username da razão social: primeiro e segundo palavra em minúsculo, só a-z 0-9 . - (igual funcionário: primeiro + segundo nome). */
+function usernameFromRazaoSocial(razaoSocial: string): string {
+  const t = (razaoSocial ?? "").trim();
+  if (!t) return "";
+  const normalized = (s: string) =>
+    s
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9.-]/g, "");
+  const parts = t.split(/\s+/).filter(Boolean);
+  const primeiro = normalized(parts[0] ?? "");
+  if (parts.length === 1) return primeiro;
+  const segundo = normalized(parts[1] ?? "");
+  return [primeiro, segundo].filter(Boolean).join(".");
 }
 
 export default function CadastroEmpresaPage() {
@@ -80,6 +97,8 @@ export default function CadastroEmpresaPage() {
   const [editBairro, setEditBairro] = useState(true);
   const [editUf, setEditUf] = useState(true);
   const [editCidade, setEditCidade] = useState(true);
+  const [editUsername, setEditUsername] = useState(false);
+  const refUsername = useRef<HTMLDivElement>(null);
   const lastCepFetchedRef = useRef<string>("");
   const { estados, getCidadesByUf, loading: loadingEstados } = useEstadosCidades();
   const cidades = getCidadesByUf(uf);
@@ -93,6 +112,16 @@ export default function CadastroEmpresaPage() {
       })
       .catch(() => setPaises([]));
   }, []);
+
+  useEffect(() => {
+    if (step !== 3) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (editUsername && refUsername.current && !refUsername.current.contains(t)) setEditUsername(false);
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [step, editUsername]);
 
   // Autopreenchimento ViaCEP: quando CEP tiver 8 dígitos, busca e preenche logradouro, bairro, cidade, uf (sem botão)
   useEffect(() => {
@@ -179,6 +208,27 @@ export default function CadastroEmpresaPage() {
       ["cidade", cidade, (v) => validateCidade(v, true)],
       ["uf", uf, (v) => validateUf(v, true)],
     ]);
+
+  const step1CanGoNext =
+    !validateRazaoSocial(razaoSocial, true) &&
+    !validateCnpj(cnpj, true) &&
+    !validateCodigoPais(codigoPais.replace(/\D/g, "") || null, true) &&
+    !validateDdd(ddd, true) &&
+    !validateNumeroTelefone(telefone, true);
+  const step2CanGoNext =
+    !validateRua(rua, true) &&
+    !validateNumeroEndereco(numero, true) &&
+    !validateBairro(bairro, true) &&
+    !validateCep(cep, true) &&
+    !validateCidade(cidade, true) &&
+    !validateUf(uf, true) &&
+    validateComplemento(complemento) === undefined;
+  const step3CanSubmit =
+    !validateUsername(username, true) &&
+    !validateEmail(email, true) &&
+    !validateSenha(senha, true) &&
+    senha === confirmarSenha &&
+    senha.trim().length > 0;
 
   const handleSubmit = async () => {
     if (senha !== confirmarSenha) {
@@ -291,6 +341,9 @@ export default function CadastroEmpresaPage() {
                       const formatted = formatTitleCase(e.target.value);
                       setRazaoSocial(formatted);
                       handleChange("razaoSocial", formatted, (v) => validateRazaoSocial(v, true));
+                      const suggested = maskUsernameInput(usernameFromRazaoSocial(formatted));
+                      setUsername(suggested);
+                      handleChange("username", suggested, (v) => validateUsername(v, true));
                     }}
                     onBlur={() => handleBlur("razaoSocial", razaoSocial, (v) => validateRazaoSocial(v, true))}
                     aria-invalid={!!getError("razaoSocial")}
@@ -407,11 +460,39 @@ export default function CadastroEmpresaPage() {
 
             {step === 3 && (
               <>
-                <FieldWithExpected label="Nome de usuário" required expected={getFieldExpected("username")} error={getError("username")} showValid={username.trim().length > 0}>
-                  <Input placeholder="meunome" value={username} onChange={(e) => { setUsername(e.target.value); handleChange("username", e.target.value, (v) => validateUsername(v, true)); }} onBlur={() => handleBlur("username", username, (v) => validateUsername(v, true))} aria-invalid={!!getError("username")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
-                </FieldWithExpected>
+                <div className="space-y-2">
+                  <Label required>Usuário (login)</Label>
+                  <div ref={refUsername} className="relative">
+                    <Input
+                      value={username}
+                      disabled={!editUsername}
+                      onChange={(e) => {
+                        const next = maskUsernameInput(e.target.value);
+                        setUsername(next);
+                        handleChange("username", next, (v) => validateUsername(v, true));
+                      }}
+                      onBlur={() => {
+                        handleBlur("username", username, (v) => validateUsername(v, true));
+                        setEditUsername(false);
+                      }}
+                      placeholder="primeiro.segundonome"
+                      aria-invalid={!!getError("username")}
+                      className={cn("mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base pr-12", !editUsername && "bg-muted")}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
+                      onClick={() => (editUsername ? setEditUsername(false) : setEditUsername(true))}
+                    >
+                      {editUsername ? <Check className="h-4 w-4 text-green-600" /> : <PencilLine className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  <FieldExpectedStatus fieldKey="username" value={username} error={getError("username")} touched={getTouched("username")} />
+                </div>
                 <FieldWithExpected label="Email" required expected={getFieldExpected("email")} error={getError("email")} showValid={email.trim().length > 0}>
-                  <Input type="email" placeholder="empresa@email.com" value={email} onChange={(e) => { setEmail(e.target.value); handleChange("email", e.target.value, (v) => validateEmail(v, true)); }} onBlur={() => handleBlur("email", email, (v) => validateEmail(v, true))} aria-invalid={!!getError("email")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
+                  <Input type="email" placeholder="empresa@email.com" value={email} onChange={(e) => { const next = maskEmailInput(e.target.value); setEmail(next); handleChange("email", next, (v) => validateEmail(v, true)); }} onBlur={() => handleBlur("email", email, (v) => validateEmail(v, true))} aria-invalid={!!getError("email")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
                 </FieldWithExpected>
                 <FieldWithExpected label="Senha" required expected={getFieldExpected("senha")} error={getError("senha")} showValid={senha.length > 0}>
                   <Input type="password" placeholder="••••••••" value={senha} onChange={(e) => { setSenha(e.target.value); handleChange("senha", e.target.value, (v) => validateSenha(v, true)); }} onBlur={() => handleBlur("senha", senha, (v) => validateSenha(v, true))} aria-invalid={!!getError("senha")} className="mt-0.5 h-9 text-sm sm:mt-1 sm:h-10 sm:text-base" />
@@ -444,13 +525,13 @@ export default function CadastroEmpresaPage() {
                     const valid = step === 1 ? validateStep1() : validateStep2();
                     if (valid) setStep((step + 1) as Step);
                   }}
-                  disabled={step === 1 && !!validateCnpj(cnpj, true)}
+                  disabled={step === 1 ? !step1CanGoNext : !step2CanGoNext}
                   className="gap-1 text-xs sm:text-sm"
                 >
                   Próximo <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </Button>
               ) : (
-                <Button size="sm" onClick={handleSubmit} disabled={loading} className="text-xs sm:text-sm">
+                <Button size="sm" onClick={handleSubmit} disabled={loading || !step3CanSubmit} className="text-xs sm:text-sm">
                   {loading ? "Cadastrando..." : "Cadastrar empresa"}
                 </Button>
               )}

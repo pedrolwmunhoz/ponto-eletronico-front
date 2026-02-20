@@ -3,7 +3,8 @@
  * Permite horas > 23 (ex: 44:00 para carga semanal).
  */
 export function durationToHHmm(iso: string): string {
-  if (!iso || iso === "PT0S") return "00:00";
+  if (iso === "" || iso == null) return "";
+  if (iso === "PT0S") return "00:00";
   const hMatch = iso.match(/^PT(?:(\d+)H)?(?:(\d+)M)?$/);
   if (!hMatch) {
     const onlyM = iso.match(/^PT(\d+)M$/);
@@ -39,7 +40,7 @@ export function durationToMinutes(iso: string): number {
  * Converte HH:mm (ex: 08:00, 44:00, 00:30) para Duration ISO-8601.
  */
 export function hhmmToDuration(hhmm: string): string {
-  if (!hhmm || !hhmm.trim()) return "PT0S";
+  if (hhmm == null || hhmm.trim() === "") return "";
   const parts = hhmm.trim().split(":");
   const h = parseInt(parts[0] ?? "0", 10) || 0;
   const m = parseInt(parts[1] ?? "0", 10) || 0;
@@ -49,4 +50,47 @@ export function hhmmToDuration(hhmm: string): string {
   const hours = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
   return mins === 0 ? `PT${hours}H` : `PT${hours}H${mins}M`;
+}
+
+const MAX_DURATION_HOURS = 44;
+const MAX_CARGA_DIARIA_HOURS = 12;
+const MAX_TOLERANCIA_HOURS = 6;
+
+function clampDurationHHmm(hhmm: string, maxHours: number, maxDisplay: string): string {
+  const digits = (hhmm ?? "").replace(/\D/g, "").slice(0, 4);
+  if (digits.length === 0) return "";
+  if (digits.length <= 2) return digits;
+  const formatted = `${digits.slice(0, 2)}:${digits.slice(2)}`;
+  if (digits.length < 4) return formatted;
+  const h = parseInt(digits.slice(0, 2), 10) || 0;
+  const m = parseInt(digits.slice(2), 10) || 0;
+  if (h * 60 + m > maxHours * 60) return maxDisplay;
+  return formatted;
+}
+
+/**
+ * Formata o input: só dígitos (máx. 4), insere ":" depois de 2 dígitos.
+ * Se estiver completo (4 dígitos) e total > 12h, exibe "12:00" na tela.
+ * Use apenas para carga diária.
+ */
+export function clampDurationHHmmTo12(hhmm: string): string {
+  return clampDurationHHmm(hhmm, MAX_CARGA_DIARIA_HOURS, "12:00");
+}
+
+/**
+ * Formata o input: só dígitos (máx. 4), insere ":" depois de 2 dígitos.
+ * Se estiver completo (4 dígitos) e total > 6h, exibe "06:00" na tela.
+ * Use apenas para tolerância.
+ */
+export function clampDurationHHmmTo6(hhmm: string): string {
+  return clampDurationHHmm(hhmm, MAX_TOLERANCIA_HOURS, "06:00");
+}
+
+/**
+ * Formata o input: só dígitos (máx. 4), insere ":" depois de 2 dígitos.
+ * Se estiver completo (4 dígitos) e total > 44h, exibe "44:00" na tela.
+ * Permite apagar (campo vazio).
+ */
+export function clampDurationHHmmTo44(hhmm: string): string {
+  return clampDurationHHmm(hhmm, MAX_DURATION_HOURS, "44:00");
 }

@@ -59,7 +59,7 @@ function formatDate(s: string | null) {
   }
 }
 
-export default function FeriasPage() {
+function FeriasPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
@@ -167,7 +167,7 @@ export default function FeriasPage() {
             Consulte e cadastre afastamentos por funcionário
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) queryClient.invalidateQueries({ queryKey: ["empresa", "ferias-afastamentos"] }); }}>
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus className="h-4 w-4" />
@@ -257,7 +257,7 @@ export default function FeriasPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)}>
+              <Button variant="outline" onClick={() => { setOpen(false); queryClient.invalidateQueries({ queryKey: ["empresa", "ferias-afastamentos"] }); }}>
                 Cancelar
               </Button>
               <Button onClick={handleSubmit} disabled={criarMutation.isPending}>
@@ -388,3 +388,5 @@ export default function FeriasPage() {
     </div>
   );
 }
+
+export default FeriasPage;

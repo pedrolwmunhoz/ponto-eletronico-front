@@ -235,3 +235,5 @@ export function ModalCriarRegistro({
     </Dialog>
   );
 }
+
+export default ModalCriarRegistro;

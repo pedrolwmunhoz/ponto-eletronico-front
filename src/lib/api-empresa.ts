@@ -36,6 +36,7 @@ import type {
   EmpresaConfigInicialRequest,
   FuncionarioPerfilResponse,
   MetricasDiariaEmpresaResponse,
+  AtividadeRecenteResponse,
 } from "@/types/empresa";
 
 const BASE = "/api/empresa";
@@ -314,6 +315,11 @@ export function getMetricasDiaPorPeriodo(dataInicio: string, dataFim: string): P
       params: { dataInicio, dataFim },
     })
     .then((r) => r.data);
+}
+
+/** GET /api/empresa/atividades-recentes — Últimos 4 registros de ponto (mesmo card da landing). */
+export function getAtividadesRecentes(): Promise<AtividadeRecenteResponse[]> {
+  return api.get<AtividadeRecenteResponse[]>(`${BASE}/atividades-recentes`).then((r) => r.data);
 }
 
 /** POST /api/empresa/funcionario/:funcionarioId/afastamentos — Doc id 42 */

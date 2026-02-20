@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Settings2, Plus, Trash2, Locate } from "lucide-react";
+import { Settings2, Plus, Trash2, Locate, PencilLine, Check, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,10 +19,11 @@ import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { useValidation } from "@/hooks/useValidation";
-import { validateDurationHhmm, validateHorario, validateRequiredSelect, validateTimezone, validateTotalDiasVencimento } from "@/lib/validations";
+import { validateDurationHhmm, validateDurationHhmmCargaDiaria, validateDurationHhmmIntervalo, validateDurationHhmmTolerancia, validateHorario, validateRequiredSelect, validateTimezone, validateTotalDiasVencimento } from "@/lib/validations";
 import { FieldExpectedStatus } from "@/components/ui/field-with-expected";
+import { cn } from "@/lib/utils";
 import { configInicialEmpresa } from "@/lib/api-empresa";
-import { durationToHHmm, hhmmToDuration } from "@/lib/duration";
+import { durationToHHmm, hhmmToDuration, clampDurationHHmmTo44, clampDurationHHmmTo6, clampDurationHHmmTo12 } from "@/lib/duration";
 import type {
   EmpresaConfigInicialRequest,
   EmpresaJornadaConfigRequest,
@@ -67,14 +68,40 @@ export default function ConfigInicialPage() {
   const [banco, setBanco] = useState<EmpresaBancoHorasConfigRequest>(defaultBanco);
   const [geofences, setGeofences] = useState<UsuarioGeofenceRequest[]>([]);
   const [buscandoLocal, setBuscandoLocal] = useState<number | null>(null);
+  const [durationInputs, setDurationInputs] = useState<Record<string, string>>({});
+  const [editTimezone, setEditTimezone] = useState(false);
+  const refTimezone = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleMouseDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (editTimezone && refTimezone.current && !refTimezone.current.contains(target)) setEditTimezone(false);
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [editTimezone]);
+
+  const getDurationDisplay = (key: string, iso: string) =>
+    durationInputs[key] !== undefined ? durationInputs[key] : durationToHHmm(iso ?? "");
+
+  const commitDuration = (key: string, jornadaKey: keyof EmpresaJornadaConfigRequest, display: string) => {
+    const iso = display.trim() === "" ? "" : hhmmToDuration(display) || "";
+    setJornada((p) => ({ ...p, [jornadaKey]: iso }));
+    setDurationInputs((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    return iso;
+  };
 
   const mutation = useMutation({
     mutationFn: (body: EmpresaConfigInicialRequest) => {
       const ok = validateAll([
         ["tipoEscalaJornadaId", String(body.empresaJornadaConfig.tipoEscalaJornadaId ?? ""), (v) => validateRequiredSelect(v, "Tipo de escala jornada é obrigatório.")],
-        ["cargaDiariaPadrao", durationToHHmm(body.empresaJornadaConfig.cargaHorariaDiaria ?? ""), (v) => validateDurationHhmm(v, true, "Carga diária")],
+        ["cargaDiariaPadrao", durationToHHmm(body.empresaJornadaConfig.cargaHorariaDiaria ?? ""), (v) => validateDurationHhmmCargaDiaria(v)],
         ["cargaSemanalPadrao", durationToHHmm(body.empresaJornadaConfig.cargaHorariaSemanal ?? ""), (v) => validateDurationHhmm(v, true, "Carga semanal")],
-        ["intervaloPadrao", durationToHHmm(body.empresaJornadaConfig.intervaloPadrao ?? ""), (v) => validateDurationHhmm(v, true, "Intervalo")],
+        ["intervaloPadrao", durationToHHmm(body.empresaJornadaConfig.intervaloPadrao ?? ""), (v) => validateDurationHhmmIntervalo(v)],
         ["entradaPadrao", body.empresaJornadaConfig.entradaPadrao ?? "", (v) => validateHorario(v, true, "Entrada padrão")],
         ["saidaPadrao", body.empresaJornadaConfig.saidaPadrao ?? "", (v) => validateHorario(v, true, "Saída padrão")],
         ["timezone", body.empresaJornadaConfig.timezone, (v) => validateTimezone(v, true)],
@@ -101,10 +128,16 @@ export default function ConfigInicialPage() {
   });
 
   const addGeofence = () => {
-    setGeofences((prev) => [
-      ...prev,
-      { descricao: "", latitude: 0, longitude: 0, raioMetros: 100, ativo: true },
-    ]);
+    const isDesktop = typeof window !== "undefined" && window.innerWidth >= 1024;
+    const count = isDesktop ? 3 : 1;
+    const newItems: UsuarioGeofenceRequest[] = Array.from({ length: count }, (_, idx) => ({
+      descricao: "",
+      latitude: 0,
+      longitude: 0,
+      raioMetros: 100,
+      ativo: idx === 0,
+    }));
+    setGeofences((prev) => [...prev, ...newItems]);
   };
 
   const updateGeofence = (index: number, field: keyof UsuarioGeofenceRequest, value: unknown) => {
@@ -146,7 +179,7 @@ export default function ConfigInicialPage() {
       return;
     }
     const validGeofences = geofences.filter(
-      (g) => g.descricao?.trim() && typeof g.latitude === "number" && typeof g.longitude === "number" && g.raioMetros >= 1
+      (g) => g.ativo && g.descricao?.trim() && typeof g.latitude === "number" && typeof g.longitude === "number" && g.raioMetros >= 1
     );
     const body: EmpresaConfigInicialRequest = {
       empresaJornadaConfig: jornada,
@@ -213,69 +246,101 @@ export default function ConfigInicialPage() {
             <div className="space-y-2">
               <Label required>Carga diária</Label>
               <Input
-                value={durationToHHmm(jornada.cargaHorariaDiaria ?? "")}
+                value={getDurationDisplay("cargaDiaria", jornada.cargaHorariaDiaria ?? "")}
                 onChange={(e) => {
-                  const v = hhmmToDuration(e.target.value);
-                  setJornada((p) => ({ ...p, cargaHorariaDiaria: v }));
-                  handleChange("cargaDiariaPadrao", durationToHHmm(v ?? ""), (x) => validateDurationHhmm(x, true, "Carga diária"));
+                  const next = clampDurationHHmmTo12(e.target.value);
+                  setDurationInputs((p) => ({ ...p, cargaDiaria: next }));
+                  handleChange("cargaDiariaPadrao", next, (x) => validateDurationHhmmCargaDiaria(x));
                 }}
-                onBlur={() => handleBlur("cargaDiariaPadrao", durationToHHmm(jornada.cargaHorariaDiaria ?? ""), (x) => validateDurationHhmm(x, true, "Carga diária"))}
+                onBlur={() => {
+                  const display = getDurationDisplay("cargaDiaria", jornada.cargaHorariaDiaria ?? "");
+                  const iso = commitDuration("cargaDiaria", "cargaHorariaDiaria", display);
+                  handleBlur("cargaDiariaPadrao", durationToHHmm(iso || ""), (x) => validateDurationHhmmCargaDiaria(x));
+                }}
                 placeholder="08:00"
+                maxLength={5}
               />
-              <FieldExpectedStatus fieldKey="cargaDiariaPadrao" value={durationToHHmm(jornada.cargaHorariaDiaria ?? "")} error={getError("cargaDiariaPadrao")} touched={getTouched("cargaDiariaPadrao")} />
+              <FieldExpectedStatus fieldKey="cargaDiariaPadrao" value={getDurationDisplay("cargaDiaria", jornada.cargaHorariaDiaria ?? "")} error={getError("cargaDiariaPadrao")} touched={getTouched("cargaDiariaPadrao")} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label required>Carga semanal</Label>
               <Input
-                value={durationToHHmm(jornada.cargaHorariaSemanal ?? "")}
+                value={getDurationDisplay("cargaSemanal", jornada.cargaHorariaSemanal ?? "")}
                 onChange={(e) => {
-                  const v = hhmmToDuration(e.target.value);
-                  setJornada((p) => ({ ...p, cargaHorariaSemanal: v }));
-                  handleChange("cargaSemanalPadrao", durationToHHmm(v ?? ""), (x) => validateDurationHhmm(x, true, "Carga semanal"));
+                  const next = clampDurationHHmmTo44(e.target.value);
+                  setDurationInputs((p) => ({ ...p, cargaSemanal: next }));
+                  handleChange("cargaSemanalPadrao", next, (x) => validateDurationHhmm(x, true, "Carga semanal"));
                 }}
-                onBlur={() => handleBlur("cargaSemanalPadrao", durationToHHmm(jornada.cargaHorariaSemanal ?? ""), (x) => validateDurationHhmm(x, true, "Carga semanal"))}
+                onBlur={() => {
+                  const display = getDurationDisplay("cargaSemanal", jornada.cargaHorariaSemanal ?? "");
+                  const iso = commitDuration("cargaSemanal", "cargaHorariaSemanal", display);
+                  handleBlur("cargaSemanalPadrao", durationToHHmm(iso || ""), (x) => validateDurationHhmm(x, true, "Carga semanal"));
+                }}
                 placeholder="44:00"
+                maxLength={5}
               />
-              <FieldExpectedStatus fieldKey="cargaSemanalPadrao" value={durationToHHmm(jornada.cargaHorariaSemanal ?? "")} error={getError("cargaSemanalPadrao")} touched={getTouched("cargaSemanalPadrao")} />
+              <FieldExpectedStatus fieldKey="cargaSemanalPadrao" value={getDurationDisplay("cargaSemanal", jornada.cargaHorariaSemanal ?? "")} error={getError("cargaSemanalPadrao")} touched={getTouched("cargaSemanalPadrao")} />
             </div>
             <div className="space-y-2">
               <Label required>Tolerância</Label>
               <Input
-                value={durationToHHmm(jornada.toleranciaPadrao ?? "PT0S")}
+                value={getDurationDisplay("tolerancia", jornada.toleranciaPadrao ?? "")}
                 onChange={(e) => {
-                  const v = hhmmToDuration(e.target.value) || "PT0S";
-                  setJornada((p) => ({ ...p, toleranciaPadrao: v }));
-                  handleChange("toleranciaPadrao", durationToHHmm(v), (x) => validateDurationHhmm(x, false));
+                  const next = clampDurationHHmmTo6(e.target.value);
+                  setDurationInputs((p) => ({ ...p, tolerancia: next }));
+                  handleChange("toleranciaPadrao", next, (x) => validateDurationHhmmTolerancia(x, false));
                 }}
-                onBlur={() => handleBlur("toleranciaPadrao", durationToHHmm(jornada.toleranciaPadrao ?? "PT0S"), (x) => validateDurationHhmm(x, false))}
+                onBlur={() => {
+                  const display = getDurationDisplay("tolerancia", jornada.toleranciaPadrao ?? "");
+                  let iso = commitDuration("tolerancia", "toleranciaPadrao", display);
+                  if (iso === "") {
+                    setJornada((p) => ({ ...p, toleranciaPadrao: "PT0S" }));
+                    iso = "PT0S";
+                  }
+                  handleBlur("toleranciaPadrao", durationToHHmm(iso), (x) => validateDurationHhmmTolerancia(x, false));
+                }}
                 placeholder="00:00"
+                maxLength={5}
               />
-              <FieldExpectedStatus fieldKey="toleranciaPadrao" value={durationToHHmm(jornada.toleranciaPadrao ?? "PT0S")} error={getError("toleranciaPadrao")} touched={getTouched("toleranciaPadrao")} />
+              <FieldExpectedStatus fieldKey="toleranciaPadrao" value={getDurationDisplay("tolerancia", jornada.toleranciaPadrao ?? "")} error={getError("toleranciaPadrao")} touched={getTouched("toleranciaPadrao")} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label required>Intervalo</Label>
               <Input
-                value={durationToHHmm(jornada.intervaloPadrao ?? "")}
+                value={getDurationDisplay("intervalo", jornada.intervaloPadrao ?? "")}
                 onChange={(e) => {
-                  const v = hhmmToDuration(e.target.value);
-                  setJornada((p) => ({ ...p, intervaloPadrao: v }));
-                  handleChange("intervaloPadrao", durationToHHmm(v ?? ""), (x) => validateDurationHhmm(x, true, "Intervalo"));
+                  const next = clampDurationHHmmTo6(e.target.value);
+                  setDurationInputs((p) => ({ ...p, intervalo: next }));
+                  handleChange("intervaloPadrao", next, (x) => validateDurationHhmmIntervalo(x));
                 }}
-                onBlur={() => handleBlur("intervaloPadrao", durationToHHmm(jornada.intervaloPadrao ?? ""), (x) => validateDurationHhmm(x, true, "Intervalo"))}
+                onBlur={() => {
+                  const display = getDurationDisplay("intervalo", jornada.intervaloPadrao ?? "");
+                  const iso = commitDuration("intervalo", "intervaloPadrao", display);
+                  handleBlur("intervaloPadrao", durationToHHmm(iso || ""), (x) => validateDurationHhmmIntervalo(x));
+                }}
                 placeholder="01:00"
+                maxLength={5}
               />
-              <FieldExpectedStatus fieldKey="intervaloPadrao" value={durationToHHmm(jornada.intervaloPadrao ?? "")} error={getError("intervaloPadrao")} touched={getTouched("intervaloPadrao")} />
+              <FieldExpectedStatus fieldKey="intervaloPadrao" value={getDurationDisplay("intervalo", jornada.intervaloPadrao ?? "")} error={getError("intervaloPadrao")} touched={getTouched("intervaloPadrao")} />
             </div>
             <div className="space-y-2">
               <Label>Descanso entre jornadas (opcional)</Label>
               <Input
-                value={durationToHHmm(jornada.tempoDescansoEntreJornada ?? "")}
-                onChange={(e) => setJornada((p) => ({ ...p, tempoDescansoEntreJornada: hhmmToDuration(e.target.value) }))}
+                value={getDurationDisplay("descanso", jornada.tempoDescansoEntreJornada ?? "")}
+                onChange={(e) => {
+                  const next = clampDurationHHmmTo44(e.target.value);
+                  setDurationInputs((p) => ({ ...p, descanso: next }));
+                }}
+                onBlur={() => {
+                  const display = getDurationDisplay("descanso", jornada.tempoDescansoEntreJornada ?? "");
+                  commitDuration("descanso", "tempoDescansoEntreJornada", display);
+                }}
                 placeholder="11:00"
+                maxLength={5}
               />
             </div>
           </div>
@@ -311,15 +376,33 @@ export default function ConfigInicialPage() {
           </div>
           <div className="space-y-2">
             <Label required>Timezone</Label>
-            <Input
-              value={jornada.timezone}
-              onChange={(e) => {
-                setJornada((p) => ({ ...p, timezone: e.target.value }));
-                handleChange("timezone", e.target.value, (x) => validateTimezone(x, true));
-              }}
-              onBlur={() => handleBlur("timezone", jornada.timezone, (x) => validateTimezone(x, true))}
-              placeholder="America/Sao_Paulo"
-            />
+            <div ref={refTimezone} className="relative">
+              <Input
+                value={jornada.timezone}
+                disabled={!editTimezone}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setJornada((p) => ({ ...p, timezone: v }));
+                  handleChange("timezone", v, (x) => validateTimezone(x, true));
+                }}
+                onBlur={() => {
+                  handleBlur("timezone", jornada.timezone, (x) => validateTimezone(x, true));
+                  setEditTimezone(false);
+                }}
+                placeholder="America/Sao_Paulo"
+                autoComplete="off"
+                className={cn("pr-12", !editTimezone && "bg-muted")}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
+                onClick={() => (editTimezone ? (handleBlur("timezone", jornada.timezone, (x) => validateTimezone(x, true)), setEditTimezone(false)) : setEditTimezone(true))}
+              >
+                {editTimezone ? <Check className="h-4 w-4 text-green-600" /> : <PencilLine className="h-4 w-4" />}
+              </Button>
+            </div>
             <FieldExpectedStatus fieldKey="timezone" value={jornada.timezone} error={getError("timezone")} touched={getTouched("timezone")} />
           </div>
           <Separator className="my-4" />
@@ -374,9 +457,16 @@ export default function ConfigInicialPage() {
             <Input
               type="number"
               min={1}
+              max={365}
               value={banco.totalDiasVencimento || ""}
               onChange={(e) => {
-                const n = parseInt(e.target.value, 10) || 0;
+                const raw = e.target.value;
+                if (raw === "" || raw === null) {
+                  setBanco((p) => ({ ...p, totalDiasVencimento: 0 }));
+                  handleChange("totalDiasVencimento", 0, validateTotalDiasVencimento);
+                  return;
+                }
+                const n = Math.min(365, Math.max(0, parseInt(raw, 10) || 0));
                 setBanco((p) => ({ ...p, totalDiasVencimento: n }));
                 handleChange("totalDiasVencimento", n, validateTotalDiasVencimento);
               }}
@@ -400,6 +490,7 @@ export default function ConfigInicialPage() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">Desativados não serão enviados para cadastro.</p>
           {geofences.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhuma área cadastrada. Adicione locais onde o ponto pode ser registrado (ex.: sede, filial).</p>
           ) : (
@@ -412,75 +503,81 @@ export default function ConfigInicialPage() {
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
-                <div className="grid gap-2">
-                  <Label required>Descrição</Label>
-                  <Input
-                    value={g.descricao}
-                    onChange={(e) => updateGeofence(i, "descricao", e.target.value)}
-                    placeholder="Ex: Sede"
-                  />
-                </div>
                 <div className="flex items-center gap-2">
                   <Checkbox
                     checked={g.ativo}
                     onCheckedChange={(c) => updateGeofence(i, "ativo", !!c)}
                   />
-                  <Label>Ativo (opcional)</Label>
+                  <Label className="cursor-pointer font-normal">{g.ativo ? "Ativo" : "Desativado"}</Label>
                 </div>
-                <div className="flex items-center gap-1.5 mt-4">
-                  <Label required>Coordenadas</Label>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button type="button" title="Quando o navegador pedir permissão, escolha Permitir e marque Lembrar ou Sempre para não perguntar de novo." className="inline-flex text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded p-0.5" aria-label="Ajuda">
-                        <HelpCircle className="h-4 w-4" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="max-w-[260px] z-[100]" sideOffset={8}>
-                      Quando o navegador pedir permissão, escolha &quot;Permitir&quot; e marque &quot;Lembrar&quot; ou &quot;Sempre&quot; para não perguntar de novo.
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className={cn("space-y-3", !g.ativo && "opacity-60 pointer-events-none")}>
                   <div className="grid gap-2">
-                    <Label>Latitude</Label>
+                    <Label required>Descrição</Label>
                     <Input
-                      type="number"
-                      step="any"
-                      value={g.latitude || ""}
-                      onChange={(e) => updateGeofence(i, "latitude", parseFloat(e.target.value) || 0)}
-                      placeholder="-23.5505"
+                      value={g.descricao}
+                      onChange={(e) => updateGeofence(i, "descricao", e.target.value)}
+                      placeholder="Ex: Sede"
+                      disabled={!g.ativo}
                     />
                   </div>
-                  <div className="grid gap-2">
-                    <Label>Longitude</Label>
+                  <div className="flex items-center gap-1.5 mt-4">
+                    <Label required>Coordenadas</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button type="button" title="Quando o navegador pedir permissão, escolha Permitir e marque Lembrar ou Sempre para não perguntar de novo." className="inline-flex text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded p-0.5" aria-label="Ajuda">
+                          <HelpCircle className="h-4 w-4" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-[260px] z-[100]" sideOffset={8}>
+                        Quando o navegador pedir permissão, escolha &quot;Permitir&quot; e marque &quot;Lembrar&quot; ou &quot;Sempre&quot; para não perguntar de novo.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label>Latitude</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        value={g.latitude || ""}
+                        onChange={(e) => updateGeofence(i, "latitude", parseFloat(e.target.value) || 0)}
+                        placeholder="-23.5505"
+                        disabled={!g.ativo}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Longitude</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        value={g.longitude || ""}
+                        onChange={(e) => updateGeofence(i, "longitude", parseFloat(e.target.value) || 0)}
+                        placeholder="-46.6333"
+                        disabled={!g.ativo}
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full gap-2 text-sm"
+                    onClick={() => puxarLocal(i)}
+                    disabled={buscandoLocal === i || !g.ativo}
+                  >
+                    <Locate className="h-4 w-4 text-green-600 shrink-0" />
+                    {buscandoLocal === i ? "Buscando..." : "Usar minha localização atual"}
+                  </Button>
+                  <div className="grid gap-2 max-w-[120px]">
+                    <Label>Raio (m)</Label>
                     <Input
                       type="number"
-                      step="any"
-                      value={g.longitude || ""}
-                      onChange={(e) => updateGeofence(i, "longitude", parseFloat(e.target.value) || 0)}
-                      placeholder="-46.6333"
+                      min={1}
+                      max={5000}
+                      value={g.raioMetros || ""}
+                      onChange={(e) => updateGeofence(i, "raioMetros", parseInt(e.target.value, 10) || 100)}
+                      disabled={!g.ativo}
                     />
                   </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full gap-2 text-sm"
-                  onClick={() => puxarLocal(i)}
-                  disabled={buscandoLocal === i}
-                >
-                  <Locate className="h-4 w-4 text-green-600 shrink-0" />
-                  {buscandoLocal === i ? "Buscando..." : "Usar minha localização atual"}
-                </Button>
-                <div className="grid gap-2 max-w-[120px]">
-                  <Label>Raio (m)</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={5000}
-                    value={g.raioMetros || ""}
-                    onChange={(e) => updateGeofence(i, "raioMetros", parseInt(e.target.value, 10) || 100)}
-                  />
                 </div>
               </div>
             ))}

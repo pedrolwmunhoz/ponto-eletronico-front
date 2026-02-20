@@ -60,7 +60,7 @@ function statusBadge(status: string) {
   return "bg-amber-100 text-amber-800";
 }
 
-function SolicitacoesPage() {
+export default function SolicitacoesPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { getError, getTouched, handleBlur, handleChange, validateAll } = useValidation();
@@ -349,5 +349,3 @@ function SolicitacoesPage() {
     </div>
   );
 }
-
-export default SolicitacoesPage;

@@ -10,8 +10,9 @@ export type ValidationResult = string | undefined;
 /** Regex e constantes espelhadas da API (documentação no JSDoc por campo). */
 
 // ----- Username (empresa/funcionário/admin) - UsuarioPerfilAtualizarRequest, FuncionarioCreateRequest, EmpresaCreateRequest, AdminCriarRequest -----
-/** Apenas letras minúsculas, números, . e - | Size(max=255) */
+/** Apenas letras minúsculas, números, . e - | Size(min=6, max=255) */
 export const REGEX_USERNAME = /^[a-z0-9.-]+$/u;
+export const MIN_LEN_USERNAME = 6;
 export const MAX_LEN_USERNAME = 255;
 
 // ----- Email - UsuarioEmailRequest, FuncionarioCreateRequest, EmpresaCreateRequest, FuncionarioResetarEmailRequest, RecuperarSenhaRequest -----
@@ -63,11 +64,9 @@ export const REGEX_CEP = /^\d{5}-?\d{3}$|^\d{8}$/;
 // ----- Telefone - UsuarioTelefoneRequest, UsuarioTelefoneAdicionarRequest -----
 /** Código país e DDD/número: apenas dígitos */
 export const REGEX_TELEFONE_NUMERO = /^[0-9]+$/;
-export const MAX_LEN_CODIGO_PAIS = 10;
-export const MIN_LEN_DDD = 2;
-export const MAX_LEN_DDD = 5;
-export const MIN_LEN_NUMERO_TELEFONE = 8;
-export const MAX_LEN_NUMERO_TELEFONE = 20;
+export const MAX_LEN_CODIGO_PAIS = 3;
+export const LEN_DDD = 2;
+export const LEN_NUMERO_TELEFONE = 9;
 
 // ----- PIS/PASEP - ContratoFuncionarioRequest (opcional, 11 dígitos sem máscara) -----
 export const LEN_PIS_PASEP = 11;
@@ -287,7 +286,7 @@ export function validateCodigoPais(value: string | null | undefined, required = 
   const v = (value ?? "").trim();
   if (v.length === 0) return required ? "Código do país é obrigatório." : undefined;
   if (!REGEX_TELEFONE_NUMERO.test(v)) return "Código do país deve conter apenas números.";
-  if (v.length > MAX_LEN_CODIGO_PAIS) return "Código do país deve ter no máximo 10 caracteres.";
+  if (v.length > MAX_LEN_CODIGO_PAIS) return "Código do país deve ter no máximo 3 dígitos.";
   return undefined;
 }
 
@@ -295,8 +294,7 @@ export function validateDdd(value: string | null | undefined, required = true): 
   const v = (value ?? "").trim();
   if (v.length === 0) return required ? "DDD é obrigatório." : undefined;
   if (!REGEX_TELEFONE_NUMERO.test(v)) return "DDD deve conter apenas números.";
-  if (v.length < MIN_LEN_DDD) return "DDD deve ter no mínimo 2 dígitos.";
-  if (v.length > MAX_LEN_DDD) return "DDD deve ter no máximo 5 caracteres.";
+  if (v.length !== LEN_DDD) return `DDD deve ter ${LEN_DDD} dígitos.`;
   return undefined;
 }
 
@@ -305,8 +303,7 @@ export function validateNumeroTelefone(value: string | null | undefined, require
   const digits = v.replace(/\D/g, "");
   if (digits.length === 0) return required ? "Número é obrigatório." : undefined;
   if (!REGEX_TELEFONE_NUMERO.test(digits)) return "Número deve conter apenas números.";
-  if (digits.length < MIN_LEN_NUMERO_TELEFONE) return "Número deve ter no mínimo 8 dígitos.";
-  if (digits.length > MAX_LEN_NUMERO_TELEFONE) return "Número deve ter no máximo 20 caracteres.";
+  if (digits.length !== LEN_NUMERO_TELEFONE) return `Número deve ter ${LEN_NUMERO_TELEFONE} dígitos.`;
   return undefined;
 }
 
@@ -460,6 +457,36 @@ export function validateDurationHhmm(value: string | null | undefined, required 
   return undefined;
 }
 
+/** Valida duração HH:mm para carga diária: obrigatório e no máximo 12:00. */
+export function validateDurationHhmmCargaDiaria(value: string | null | undefined, label = "Carga diária"): ValidationResult {
+  const err = validateDurationHhmm(value, true, label);
+  if (err) return err;
+  const v = (value ?? "").trim();
+  const [h, m] = v.split(":").map((x) => parseInt(x, 10) || 0);
+  if (h * 60 + m > 12 * 60) return `${label} deve ser no máximo 12:00.`;
+  return undefined;
+}
+
+/** Valida duração HH:mm para tolerância: opcional; se preenchido, no máximo 6:00. */
+export function validateDurationHhmmTolerancia(value: string | null | undefined, required = false, label = "Tolerância"): ValidationResult {
+  const v = (value ?? "").trim();
+  if (v.length === 0) return required ? `${label} é obrigatório.` : undefined;
+  if (!REGEX_DURATION_HHMM.test(v)) return "Formato inválido (use HH:mm, ex: 00:00).";
+  const [h, m] = v.split(":").map((x) => parseInt(x, 10) || 0);
+  if (h * 60 + m > 6 * 60) return `${label} deve ser no máximo 6:00.`;
+  return undefined;
+}
+
+/** Valida duração HH:mm para intervalo: obrigatório e no máximo 6:00. */
+export function validateDurationHhmmIntervalo(value: string | null | undefined, label = "Intervalo"): ValidationResult {
+  const err = validateDurationHhmm(value, true, label);
+  if (err) return err;
+  const v = (value ?? "").trim();
+  const [h, m] = v.split(":").map((x) => parseInt(x, 10) || 0);
+  if (h * 60 + m > 6 * 60) return `${label} deve ser no máximo 6:00.`;
+  return undefined;
+}
+
 export function validateData(value: string | null | undefined, required = true): ValidationResult {
   const v = (value ?? "").trim();
   if (v.length === 0) return required ? "Data é obrigatória." : undefined;
@@ -468,10 +495,13 @@ export function validateData(value: string | null | undefined, required = true):
   return undefined;
 }
 
+const MAX_TOTAL_DIAS_VENCIMENTO = 365;
+
 export function validateTotalDiasVencimento(value: number | string | null | undefined): ValidationResult {
   if (value === null || value === undefined || value === "") return "Total de dias é obrigatório.";
   const n = typeof value === "string" ? parseInt(value, 10) : value;
   if (Number.isNaN(n) || n < 1) return "Deve ser um número positivo.";
+  if (n > MAX_TOTAL_DIAS_VENCIMENTO) return "Total de dias deve ser no máximo 365.";
   return undefined;
 }
 
@@ -502,15 +532,15 @@ export function validateDataAdmissao(value: string | null | undefined, required 
 
 /** Mensagens "Esperado" — exatamente o que a validação do front exige (espelho dos validadores). */
 export const FIELD_EXPECTED: Record<string, string> = {
-  username: "Apenas letras minúsculas, números, . e - (mín. 2, máx. 255).",
-  email: "E-mail válido (máx. 255 caracteres).",
+  username: "Apenas letras minúsculas, números, . e - (mín. 6 caracteres).",
+  email: "E-mail válido.",
   senha: "Mín. 6 caracteres, ao menos 1 maiúscula e 1 número ou pontuação.",
   valor: "Conforme o tipo: e-mail, usuário, CPF, CNPJ ou telefone.",
   credencial: "Conforme o tipo: e-mail, usuário, CPF, CNPJ ou telefone.",
   cpf: "11 dígitos.",
   cnpj: "14 caracteres (12 alfanuméricos + 2 dígitos).",
   telefone: "11 dígitos (DDD + número).",
-  razaoSocial: "Mín. 2 e máx. 255 caracteres.",
+  razaoSocial: "Mín. 2 caracteres.",
   nomeCompleto: "Mín. 2 e máx. 255 caracteres.",
   primeiroNome: "Mín. 2 e máx. 100 caracteres.",
   ultimoNome: "Mín. 2 e máx. 100 caracteres.",
@@ -522,9 +552,9 @@ export const FIELD_EXPECTED: Record<string, string> = {
   cidade: "Letras, números, espaços e pontuação (mín. 2, máx. 255).",
   uf: "2 letras (ex: SP).",
   cep: "8 dígitos.",
-  codigoPais: "Apenas números (máx. 10, ex: 55).",
-  ddd: "Apenas números (mín. 2, máx. 5, ex: 11).",
-  numeroTelefone: "Apenas números (mín. 8, máx. 20 dígitos).",
+  codigoPais: "3 dígitos (ex: 55).",
+  ddd: "2 dígitos (ex: 11).",
+  numeroTelefone: "9 dígitos (ex: 99999-9999).",
   codigo: "6 dígitos (código enviado por e-mail).",
   senhaNova: "Mín. 6 caracteres, 1 maiúscula e 1 número ou pontuação.",
   confirmarSenha: "Igual à senha.",
@@ -534,10 +564,10 @@ export const FIELD_EXPECTED: Record<string, string> = {
   data: "Data (yyyy-MM-dd).",
   time: "Horário HH:mm.",
   horario: "Horário HH:mm.",
-  cargaDiariaPadrao: "Duração HH:mm (ex: 08:00).",
-  cargaSemanalPadrao: "Duração HH:mm (ex: 44:00).",
-  toleranciaPadrao: "Duração HH:mm (ex: 00:00).",
-  intervaloPadrao: "Duração HH:mm (ex: 01:00).",
+  cargaDiariaPadrao: "HH:mm, máx. 12:00 (ex: 08:00).",
+  cargaSemanalPadrao: "HH:mm, máx. 44:00 (ex: 44:00).",
+  toleranciaPadrao: "HH:mm, máx. 6:00 (ex: 00:00).",
+  intervaloPadrao: "HH:mm, máx. 6:00 (ex: 01:00).",
   timezone: "Timezone (ex: America/Sao_Paulo, máx. 50).",
   nome: "Mín. 2 e máx. 255 caracteres.",
   descricao: "Mín. 2 e máx. 500 caracteres (geofence) ou máx. 255 (feriado).",
@@ -546,7 +576,7 @@ export const FIELD_EXPECTED: Record<string, string> = {
   latitude: "Número entre -90 e 90.",
   longitude: "Número entre -180 e 180.",
   raioMetros: "Raio em metros (1 a 50000).",
-  totalDiasVencimento: "Número inteiro positivo (ex: 365).",
+  totalDiasVencimento: "Número inteiro positivo, máx. 365 dias (ex: 365).",
   tipoFeriadoId: "Selecione o tipo (Estadual ou Municipal).",
   funcionarioId: "Selecione o funcionário.",
   tipoAfastamentoId: "Selecione o tipo de afastamento.",
@@ -563,8 +593,8 @@ export const FIELD_EXPECTED: Record<string, string> = {
   salarioHora: "Valor decimal (ex: 0,00).",
   tipoContratoId: "Selecione o tipo de contrato.",
   tipoEscalaJornadaId: "Selecione o tipo de escala jornada.",
-  cargaHorariaDiaria: "Duração HH:mm (ex: 08:00).",
-  cargaHorariaSemanal: "Duração HH:mm (ex: 44:00).",
+  cargaHorariaDiaria: "HH:mm, máx. 12:00 (ex: 08:00).",
+  cargaHorariaSemanal: "HH:mm, máx. 44:00 (ex: 44:00).",
   entradaPadrao: "Horário HH:mm.",
   saidaPadrao: "Horário HH:mm.",
 };

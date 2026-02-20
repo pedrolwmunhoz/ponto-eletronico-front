@@ -3,6 +3,8 @@
  * Não altera o valor armazenado nem inputs de formulário.
  */
 
+import { LEN_DDD, LEN_NUMERO_TELEFONE } from "@/lib/validations";
+
 function onlyDigits(value: string | null | undefined): string {
   return (value ?? "").replace(/\D/g, "");
 }
@@ -73,36 +75,35 @@ export function maskCepInput(value: string): string {
   return `${d.slice(0, 5)}-${d.slice(5)}`;
 }
 
-/** Aplica máscara no DDD: apenas dígitos (máx. 5). Mesmo padrão do CPF (só números no input, sem pontuação). */
+/** Aplica máscara no DDD: apenas dígitos (LEN_DDD dígitos). */
 export function maskDddInput(value: string): string {
-  return onlyDigits(value).slice(0, 5);
+  return onlyDigits(value).slice(0, LEN_DDD);
 }
 
-/** Número de telefone formatado para exibição: 99999-9999 (9 dígitos) ou 9999-9999 (8 dígitos). */
+/** Número de telefone formatado para exibição: 99999-9999 (LEN_NUMERO_TELEFONE dígitos). */
 export function formatTelefoneNumero(value: string | null | undefined): string {
   const d = onlyDigits(value);
-  if (d.length === 9) return `${d.slice(0, 5)}-${d.slice(5)}`;
-  if (d.length === 8) return `${d.slice(0, 4)}-${d.slice(4)}`;
+  if (d.length === LEN_NUMERO_TELEFONE) return `${d.slice(0, 5)}-${d.slice(5)}`;
   return (value ?? "").trim() || "";
 }
 
-/** Aplica máscara no número de telefone enquanto digita: 99999-9999 (até 9 dígitos). Mesmo padrão do CPF. */
+/** Aplica máscara no número de telefone enquanto digita: 99999-9999 (até LEN_NUMERO_TELEFONE dígitos). */
 export function maskNumeroTelefoneInput(value: string): string {
-  const d = onlyDigits(value).slice(0, 9);
+  const d = onlyDigits(value).slice(0, LEN_NUMERO_TELEFONE);
   if (d.length <= 5) return d;
   return `${d.slice(0, 5)}-${d.slice(5)}`;
 }
 
 /**
  * Aplica máscara de telefone completo (com DDD) enquanto digita:
- * - (xx) xxxxx-xxxx (11 dígitos)
+ * - (xx) xxxxx-xxxx (LEN_DDD + LEN_NUMERO_TELEFONE dígitos)
  */
 export function maskTelefoneInput(value: string): string {
-  const d = onlyDigits(value).slice(0, 11);
+  const d = onlyDigits(value).slice(0, LEN_DDD + LEN_NUMERO_TELEFONE);
   if (d.length === 0) return "";
-  if (d.length <= 2) return `(${d}`;
-  const ddd = d.slice(0, 2);
-  const rest = d.slice(2);
+  if (d.length <= LEN_DDD) return `(${d}`;
+  const ddd = d.slice(0, LEN_DDD);
+  const rest = d.slice(LEN_DDD);
   if (rest.length === 0) return `(${ddd})`;
   if (rest.length <= 5) return `(${ddd}) ${rest}`;
   return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
@@ -148,6 +149,21 @@ export function maskSalarioInput(value: string): string {
     return intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   }
   return intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "," + decPart;
+}
+
+/** Formata input de username em tempo real: apenas a-z, 0-9, . e -; converte para minúsculo. Máx. 255. */
+export function maskUsernameInput(value: string): string {
+  const s = (value ?? "").toLowerCase().replace(/[^a-z0-9.-]/g, "");
+  return s.slice(0, 255);
+}
+
+/**
+ * Formata input de e-mail em tempo real: apenas caracteres permitidos pela API.
+ * Permitido: letras, números, . _ % + - antes do @; letras, números, . - depois do @. Máx. 255.
+ */
+export function maskEmailInput(value: string): string {
+  const s = (value ?? "").replace(/[^a-zA-Z0-9._%+-@]/g, "");
+  return s.slice(0, 255);
 }
 
 /** Primeira letra de cada palavra em maiúscula (ex: "pedro munhoz" → "Pedro Munhoz"). Preserva espaços no início e no fim. */

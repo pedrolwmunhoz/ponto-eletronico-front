@@ -297,6 +297,12 @@ export interface MetricasDiariaEmpresaResponse {
   totalPontoHoje: number;
 }
 
+/** GET /api/empresa/atividades-recentes — Últimos 4 registros de ponto (card igual à landing). */
+export interface AtividadeRecenteResponse {
+  nomeCompleto: string;
+  registradoEm: string; // ISO datetime
+}
+
 /** Jornada padrão da empresa (config inicial / jornada-padrao). Durações em ISO-8601. */
 export interface EmpresaJornadaConfigRequest {
   tipoEscalaJornadaId: number;

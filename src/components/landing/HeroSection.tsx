@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Play, MapPin, Users, Fingerprint, Clock } from "lucide-react";
+import { ArrowRight, Play, Users, Wallet, Clock } from "lucide-react";
 
 const HeroSection = () => {
   const scrollTo = (id: string) =>
@@ -52,8 +52,8 @@ const HeroSection = () => {
               <div className="grid grid-cols-3 gap-3">
                 {[
                   { icon: Users, label: "Funcionários", value: "47", iconClass: "text-primary" },
-                  { icon: Fingerprint, label: "Registros hoje", value: "94", iconClass: "text-green-600" },
-                  { icon: Clock, label: "Total de horas", value: "168h", iconClass: "text-primary" },
+                  { icon: Clock, label: "Registros dia", value: "94", iconClass: "text-info" },
+                  { icon: Wallet, label: "Total de horas", value: "168h", iconClass: "text-primary" },
                 ].map(({ icon: Icon, label, value, iconClass }) => (
                   <div key={label} className="rounded-lg bg-muted p-3 text-center">
                     <Icon className={`h-5 w-5 mx-auto mb-1 ${iconClass ?? "text-primary"}`} />

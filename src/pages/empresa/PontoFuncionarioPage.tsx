@@ -56,7 +56,7 @@ import {
 } from "@/lib/api-empresa";
 import type { PontoDiaResponse } from "@/types/empresa";
 import { ModalDetalharJornada } from "@/components/ponto/ModalDetalharJornada";
-import { ModalCriarRegistro } from "@/components/ponto/ModalCriarRegistro";
+import ModalCriarRegistro from "@/components/ponto/ModalCriarRegistro";
 
 const MESES = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -418,7 +418,7 @@ function PontoFuncionarioPage() {
       </Card>
 
       {/* Modal Espelho de ponto */}
-      <Dialog open={espelhoModalOpen} onOpenChange={setEspelhoModalOpen}>
+      <Dialog open={espelhoModalOpen} onOpenChange={(o) => { setEspelhoModalOpen(o); if (!o) { queryClient.invalidateQueries({ queryKey: ["empresa", "espelho-ponto"] }); queryClient.invalidateQueries({ queryKey: ["empresa", "espelho-ponto-listagem"] }); } }}>
         <DialogContent className="max-w-5xl h-[85vh] max-h-[85vh] flex flex-col overflow-hidden bg-white border border-stone-200 p-6 rounded-lg">
           <div className="flex flex-col flex-1 min-h-0">
             <h3 className="text-xl font-bold text-stone-800 mb-3 flex-shrink-0">Espelho de Ponto</h3>
@@ -556,7 +556,7 @@ function PontoFuncionarioPage() {
 
       <ModalDetalharJornada
         open={!!editarDiaTarget}
-        onOpenChange={(open) => !open && setEditarDiaTarget(null)}
+        onOpenChange={(open) => { if (!open) { setEditarDiaTarget(null); queryClient.invalidateQueries({ queryKey: ["empresa", "espelho-ponto"] }); queryClient.invalidateQueries({ queryKey: ["empresa", "espelho-ponto-listagem"] }); } }}
         jornada={editarDiaTarget}
         modo="empresa"
         onRemover={(registroId) => {
@@ -645,7 +645,7 @@ function PontoFuncionarioPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditTarget(null)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => { setEditTarget(null); queryClient.invalidateQueries({ queryKey: ["empresa", "espelho-ponto"] }); }}>Cancelar</Button>
             <Button
               disabled={!editForm.horario || !editForm.justificativa.trim() || editRegistroMutation.isPending}
               onClick={handleEditarRegistro}
@@ -658,7 +658,7 @@ function PontoFuncionarioPage() {
 
       <ModalCriarRegistro
         open={createOpen}
-        onOpenChange={setCreateOpen}
+        onOpenChange={(o) => { setCreateOpen(o); if (!o) queryClient.invalidateQueries({ queryKey: ["empresa", "espelho-ponto"] }); }}
         onSubmit={handleCriarRegistroSubmit}
         isLoading={createRegistroMutation.isPending}
         variant="empresa"
