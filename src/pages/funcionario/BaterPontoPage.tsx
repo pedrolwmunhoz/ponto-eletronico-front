@@ -3,12 +3,22 @@ import { Button } from "@/components/ui/button";
 import { Clock } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { registrarPontoApp, listarMeuPonto } from "@/lib/api-funcionario";
 import { tokenStorage } from "@/lib/token-storage";
 import { useToast } from "@/hooks/use-toast";
 
+const BATIDAS_POR_PAGINA = 10;
+
 export default function BaterPontoPage() {
   const [now, setNow] = useState(new Date());
+  const [pageBatidas, setPageBatidas] = useState(0);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const funcionarioId = tokenStorage.getUserId();
@@ -43,11 +53,34 @@ export default function BaterPontoPage() {
   });
 
   const hojeStr = `${ano}-${String(mes).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  const batidasHoje =
-    (pontoData ?? [])
-      .flatMap((j) => j.marcacoes ?? [])
-      .filter((m) => m.horario.startsWith(hojeStr))
-      .sort((a, b) => a.horario.localeCompare(b.horario));
+  const jornadas = pontoData ?? [];
+  const jornadaHoje = jornadas.find(
+    (j) => j.data === hojeStr || (j.marcacoes ?? []).some((m) => String(m.horario).startsWith(hojeStr))
+  );
+  const DIA_SEMANA_LABEL: Record<string, string> = {
+    SEG: "Segunda-feira",
+    TER: "Terça-feira",
+    QUA: "Quarta-feira",
+    QUI: "Quinta-feira",
+    SEX: "Sexta-feira",
+    SAB: "Sábado",
+    DOM: "Domingo",
+  };
+  const diaSemanaHoje =
+    (jornadaHoje?.diaSemana && DIA_SEMANA_LABEL[jornadaHoje.diaSemana]) ||
+    now.toLocaleDateString("pt-BR", { weekday: "long" }).replace(/^\w/, (c) => c.toUpperCase());
+  const dataHojeLabel = `${String(now.getDate()).padStart(2, "0")}/${String(mes).padStart(2, "0")}/${ano}`;
+  const batidasHoje = jornadas
+    .flatMap((j) => j.marcacoes ?? [])
+    .filter((m) => String(m.horario).startsWith(hojeStr))
+    .sort((a, b) => String(b.horario).localeCompare(String(a.horario)));
+
+  const size = BATIDAS_POR_PAGINA;
+  const totalPaginas = Math.max(1, Math.ceil(batidasHoje.length / size));
+  const batidasExibidas =
+    batidasHoje.length > size
+      ? batidasHoje.slice(pageBatidas * size, pageBatidas * size + size)
+      : batidasHoje;
 
   return (
     <div className="flex flex-col items-center gap-8 pt-8">
@@ -85,13 +118,63 @@ export default function BaterPontoPage() {
           {batidasHoje.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhuma batida registrada ainda.</p>
           ) : (
-            <ul className="space-y-1 text-sm">
-              {batidasHoje.map((r) => (
-                <li key={r.registroId} className="font-mono">
-                  {typeof r.horario === "string" ? r.horario.slice(11, 19) : r.horario}
-                </li>
-              ))}
-            </ul>
+            <>
+              <div className="overflow-x-auto rounded-md border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Data</th>
+                      <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Dia</th>
+                      <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Horário</th>
+                      <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Tipo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {batidasExibidas.map((r) => (
+                      <tr key={r.registroId} className="border-b last:border-0 font-mono">
+                        <td className="px-2 py-1.5">{dataHojeLabel}</td>
+                        <td className="px-2 py-1.5 text-muted-foreground">{diaSemanaHoje}</td>
+                        <td className="px-2 py-1.5">
+                          {typeof r.horario === "string" ? r.horario.slice(11, 19) : String(r.horario)}
+                        </td>
+                        <td className="px-2 py-1.5 text-muted-foreground">{r.tipo ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {totalPaginas > 1 && (
+                <div className="mt-4 flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Página {pageBatidas + 1} de {totalPaginas}
+                  </p>
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (pageBatidas > 0) setPageBatidas(pageBatidas - 1);
+                          }}
+                          className={pageBatidas === 0 ? "pointer-events-none opacity-50" : ""}
+                        />
+                      </PaginationItem>
+                      <PaginationItem>
+                        <PaginationNext
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (pageBatidas < totalPaginas - 1) setPageBatidas(pageBatidas + 1);
+                          }}
+                          className={pageBatidas >= totalPaginas - 1 ? "pointer-events-none opacity-50" : ""}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

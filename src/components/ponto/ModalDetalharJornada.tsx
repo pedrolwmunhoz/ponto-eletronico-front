@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { PontoDiaResponse } from "@/types/empresa";
+import { assinarComprovanteJornada } from "@/lib/api-funcionario";
 
 function formatData(horario: string): string {
   try {
@@ -56,11 +57,11 @@ export function ModalDetalharJornada({
   onAdicionarRegistro,
   onEditar,
 }: ModalDetalharJornadaProps) {
-  const handleGerarPdf = () => {
+  const handleGerarPdf = async () => {
     if (!jornada) return;
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const margin = 20;
-    const pageW = doc.getPageWidth();
+    const pageW = 210; // A4 portrait width (mm)
     let y = margin;
 
     const dataEmissao = new Date().toLocaleString("pt-BR", {
@@ -74,15 +75,14 @@ export function ModalDetalharJornada({
     // Cabeçalho (azul PontoSeg #2563eb + ícone relógio + texto branco)
     doc.setFillColor(37, 99, 235);
     doc.rect(0, 0, pageW, 36, "F");
-    // Ícone de relógio (círculo + ponteiros) à esquerda do título
     const iconX = pageW / 2 - 28;
     const iconY = 14;
     const iconR = 5;
     doc.setDrawColor(255, 255, 255);
     doc.setLineWidth(0.8);
     doc.circle(iconX, iconY, iconR, "S");
-    doc.line(iconX, iconY, iconX + 1.2, iconY - 2.2);   // ponteiro hora (12h30)
-    doc.line(iconX, iconY, iconX + 0.6, iconY + 2.8);  // ponteiro minuto (6h)
+    doc.line(iconX, iconY, iconX + 1.2, iconY - 2.2);
+    doc.line(iconX, iconY, iconX + 0.6, iconY + 2.8);
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
@@ -161,7 +161,7 @@ export function ModalDetalharJornada({
       y += 16;
     }
 
-    // Rodapé
+    // Rodapé (texto de emissão)
     if (y > 270) {
       doc.addPage();
       y = margin;
@@ -177,6 +177,44 @@ export function ModalDetalharJornada({
       y,
       { align: "center" }
     );
+
+    let assinaturaData: { assinaturaDigital: string; certificadoSerial: string; timestampAssinatura: string } | null = null;
+    if (modo === "funcionario") {
+      try {
+        const pdfArrayBuffer = doc.output("arraybuffer") as ArrayBuffer;
+        const hashBuffer = await crypto.subtle.digest("SHA-256", pdfArrayBuffer);
+        const hashBase64 = btoa(String.fromCharCode(...new Uint8Array(hashBuffer)));
+        const res = await assinarComprovanteJornada(hashBase64);
+        if (res?.assinaturaDigital != null && res?.certificadoSerial != null && res?.timestampAssinatura != null) {
+          assinaturaData = {
+            assinaturaDigital: res.assinaturaDigital,
+            certificadoSerial: res.certificadoSerial,
+            timestampAssinatura: res.timestampAssinatura,
+          };
+        }
+      } catch {
+        // Empresa sem certificado ou erro: segue sem assinatura no PDF
+      }
+    }
+
+    if (assinaturaData) {
+      doc.addPage();
+      y = margin;
+      doc.setFontSize(8);
+      doc.setTextColor(80, 80, 80);
+      doc.setFont("helvetica", "bold");
+      doc.text("Assinatura digital", margin, y);
+      doc.setFont("helvetica", "normal");
+      y += 6;
+      doc.text(`Certificado (serial): ${assinaturaData.certificadoSerial}`, margin, y);
+      y += 5;
+      doc.text(`Data da assinatura: ${assinaturaData.timestampAssinatura}`, margin, y);
+      y += 6;
+      doc.text(assinaturaData.assinaturaDigital, margin, y, {
+        maxWidth: pageW - 2 * margin,
+      });
+      doc.setTextColor(0, 0, 0);
+    }
 
     const nomeArquivo = `comprovante-ponto-${(jornada.data ?? "jornada").replace(/\//g, "-")}.pdf`;
     doc.save(nomeArquivo);

@@ -4,6 +4,7 @@
  */
 import api from "./api";
 import type {
+  AssinarComprovanteJornadaResponse,
   FeriasAfastamentosListagemResponse,
   FuncionarioPerfilResponse,
   PontoDiaResponse,
@@ -83,6 +84,13 @@ export function listarBancoHorasHistoricoFuncionario(
     .get<BancoHorasHistoricoPageResponse>("/api/usuario/banco-horas/historico", {
       params: { page, size },
     })
+    .then((r) => r.data);
+}
+
+/** POST /api/funcionario/comprovante-jornada/assinar — Doc id 35. Assina payload (ex.: hash do PDF); não persiste. */
+export function assinarComprovanteJornada(payloadBase64: string): Promise<AssinarComprovanteJornadaResponse> {
+  return api
+    .post<AssinarComprovanteJornadaResponse>("/api/funcionario/comprovante-jornada/assinar", { payloadBase64 })
     .then((r) => r.data);
 }
 

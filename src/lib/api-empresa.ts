@@ -281,9 +281,26 @@ export function getConfigInicialStatus(): Promise<ConfigInicialStatusResponse> {
   return api.get<ConfigInicialStatusResponse>(`${BASE}/config-inicial/status`).then((r) => r.data);
 }
 
-/** POST /api/empresa/config-inicial — Doc id 8 */
-export function configInicialEmpresa(body: EmpresaConfigInicialRequest): Promise<void> {
-  return api.post(`${BASE}/config-inicial`, body).then(() => undefined);
+/**
+ * Duas chamadas: 1) POST /config-inicial com JSON (config). 2) Se tiver cert, POST /config-inicial/certificado com multipart (só arquivo + senha).
+ */
+export async function configInicialEmpresa(
+  body: EmpresaConfigInicialRequest,
+  certificadoA1?: File | null,
+  certificadoA1Senha?: string | null
+): Promise<void> {
+  await api.post(`${BASE}/config-inicial`, body);
+  const temCert = certificadoA1 != null && certificadoA1.size > 0;
+  if (!temCert) return;
+  const form = new FormData();
+  form.append("certificadoA1", certificadoA1);
+  if (certificadoA1Senha != null && certificadoA1Senha.trim() !== "") {
+    form.append("certificadoA1Senha", certificadoA1Senha.trim());
+  }
+  // Forçar multipart: remover Content-Type da instância (axios coloca multipart/form-data + boundary quando data é FormData)
+  await api.post(`${BASE}/config-inicial/certificado`, form, {
+    headers: { "Content-Type": false } as unknown as Record<string, string>,
+  });
 }
 
 /** POST /api/empresa/resetar-senha — Doc id 9 */

@@ -365,6 +365,13 @@ export interface RegistroPontoManualRequest {
   observacao?: string | null;
 }
 
+/** POST /api/funcionario/comprovante-jornada/assinar — Doc id 35. Body: payloadBase64. Não persiste; retorna dados para embutir no PDF. */
+export interface AssinarComprovanteJornadaResponse {
+  assinaturaDigital?: string | null;
+  certificadoSerial?: string | null;
+  timestampAssinatura?: string | null; // LocalDateTime ex: yyyy-MM-ddTHH:mm:ss
+}
+
 // --- Solicitações de ponto (Doc ids 36, 37, 38) ---
 
 export interface SolicitacaoPontoItemResponse {

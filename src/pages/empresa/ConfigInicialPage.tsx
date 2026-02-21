@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Settings2, Plus, Trash2, Locate, PencilLine, Check, HelpCircle } from "lucide-react";
+import { Settings2, Plus, Trash2, Locate, PencilLine, Check, HelpCircle, FileKey } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,7 +70,10 @@ export default function ConfigInicialPage() {
   const [buscandoLocal, setBuscandoLocal] = useState<number | null>(null);
   const [durationInputs, setDurationInputs] = useState<Record<string, string>>({});
   const [editTimezone, setEditTimezone] = useState(false);
+  const [certificadoFile, setCertificadoFile] = useState<File | null>(null);
+  const [certificadoSenha, setCertificadoSenha] = useState("");
   const refTimezone = useRef<HTMLDivElement>(null);
+  const refCertInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
@@ -96,7 +99,8 @@ export default function ConfigInicialPage() {
   };
 
   const mutation = useMutation({
-    mutationFn: (body: EmpresaConfigInicialRequest) => {
+    mutationFn: (payload: { body: EmpresaConfigInicialRequest; certificadoFile?: File | null; certificadoSenha?: string }) => {
+      const { body, certificadoFile: file, certificadoSenha: senha } = payload;
       const ok = validateAll([
         ["tipoEscalaJornadaId", String(body.empresaJornadaConfig.tipoEscalaJornadaId ?? ""), (v) => validateRequiredSelect(v, "Tipo de escala jornada é obrigatório.")],
         ["cargaDiariaPadrao", durationToHHmm(body.empresaJornadaConfig.cargaHorariaDiaria ?? ""), (v) => validateDurationHhmmCargaDiaria(v)],
@@ -111,7 +115,7 @@ export default function ConfigInicialPage() {
         toast({ variant: "destructive", title: "Corrija os erros antes de salvar." });
         throw new Error("Validação falhou");
       }
-      return configInicialEmpresa(body);
+      return configInicialEmpresa(body, file ?? null, senha ?? null);
     },
     onSuccess: async () => {
       await queryClient.refetchQueries({ queryKey: ["empresa", "config-inicial-status"] });
@@ -186,7 +190,7 @@ export default function ConfigInicialPage() {
       empresaBancoHorasConfig: banco,
       usuarioGeofence: validGeofences.length ? validGeofences : undefined,
     };
-    mutation.mutate(body);
+    mutation.mutate({ body, certificadoFile: certificadoFile ?? undefined, certificadoSenha: certificadoSenha || undefined });
   };
 
   return (
@@ -581,6 +585,52 @@ export default function ConfigInicialPage() {
                 </div>
               </div>
             ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileKey className="h-4 w-4" />
+            Certificado A1 (opcional)
+          </CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">
+            Envie o arquivo .pfx ou .p12. A data de expiração é obtida automaticamente pelo sistema.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Arquivo do certificado</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                ref={refCertInput}
+                type="file"
+                accept=".pfx,.p12"
+                className="max-w-xs"
+                onChange={(e) => setCertificadoFile(e.target.files?.[0] ?? null)}
+              />
+              {certificadoFile && (
+                <span className="text-sm text-muted-foreground">{certificadoFile.name}</span>
+              )}
+              {certificadoFile && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => { setCertificadoFile(null); if (refCertInput.current) refCertInput.current.value = ""; }}>
+                  Remover
+                </Button>
+              )}
+            </div>
+          </div>
+          {certificadoFile && (
+            <div className="space-y-2">
+              <Label>Senha do certificado (obrigatória na maioria dos A1)</Label>
+              <Input
+                type="password"
+                placeholder="Informe a senha do .pfx"
+                value={certificadoSenha}
+                onChange={(e) => setCertificadoSenha(e.target.value)}
+                autoComplete="off"
+              />
             </div>
           )}
         </CardContent>
