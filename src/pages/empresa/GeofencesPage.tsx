@@ -24,6 +24,7 @@ import {
 } from "@/lib/validations";
 import { FieldExpectedStatus } from "@/components/ui/field-with-expected";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "@/lib/pagination-constants";
 import { listarGeofences, criarGeofence, listarFuncionarios } from "@/lib/api-empresa";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -58,7 +59,7 @@ export default function GeofencesPage() {
   const [funcionarioIds, setFuncionarioIds] = useState<string[]>([]);
   const [acessoParcialAtivo, setAcessoParcialAtivo] = useState(false);
   const [page, setPage] = useState(0);
-  const pageSize = 10;
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["empresa", "geofences", page, pageSize],
@@ -423,12 +424,13 @@ export default function GeofencesPage() {
               )}
             </div>
             {data?.paginacao && (data?.conteudo?.length ?? 0) > 0 && (
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t pt-4">
-                <p className="text-sm text-muted-foreground">
+              <div className="mt-2 sm:mt-4 grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 border-t pt-2 sm:pt-4">
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   Página {data.paginacao.paginaAtual + 1} de {data.paginacao.totalPaginas}
                   {` • ${data.paginacao.totalElementos} registro(s)`}
                 </p>
-                <Pagination>
+<div className="flex justify-center scale-90 sm:scale-100 origin-center">
+                        <Pagination>
                   <PaginationContent>
                     <PaginationItem>
                       <PaginationPrevious
@@ -441,7 +443,7 @@ export default function GeofencesPage() {
                       />
                     </PaginationItem>
                     {(() => {
-                      const maxBtns = 5;
+                      const maxBtns = 3;
                       const totalPaginas = data.paginacao.totalPaginas;
                       const paginaAtual = data.paginacao.paginaAtual;
                       const start = Math.max(0, Math.min(paginaAtual - Math.floor(maxBtns / 2), totalPaginas - maxBtns));
@@ -473,6 +475,20 @@ export default function GeofencesPage() {
                     </PaginationItem>
                   </PaginationContent>
                 </Pagination>
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">Por página</span>
+                  <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(0); }}>
+                    <SelectTrigger className="w-[72px] h-8 sm:w-[85px] sm:h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAGE_SIZE_OPTIONS.map((n) => (
+                        <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             )}
             </>

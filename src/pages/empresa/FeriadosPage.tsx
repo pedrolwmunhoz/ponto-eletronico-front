@@ -1,7 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Calendar, Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Calendar, CalendarRange, List, Plus, Pencil, Trash2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { DayContentProps } from "react-day-picker";
+import { Calendar as CalendarUI } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +24,12 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogPortal,
+  DialogOverlay,
 } from "@/components/ui/dialog";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -64,6 +72,12 @@ import {
 import type { CriarFeriadoRequest, EditarFeriadoRequest, FeriadoItemResponse } from "@/types/empresa";
 import { TIPO_FERIADO_OPCOES_EMPRESA } from "@/types/empresa";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "@/lib/pagination-constants";
+
+const MESES = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+];
 
 function formatDate(s: string | null) {
   if (!s) return "—";
@@ -78,13 +92,20 @@ function formatDate(s: string | null) {
 export default function FeriadosPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const hoje = new Date();
+  const [aba, setAba] = useState<"listagem" | "calendario">("listagem");
+  const [anoListagem, setAnoListagem] = useState(hoje.getFullYear());
+  const [mesListagem, setMesListagem] = useState<number | "all">("all");
   const [page, setPage] = useState(0);
-  const [pageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [nome, setNome] = useState("");
   const [nomeInput, setNomeInput] = useState("");
   const [openCriar, setOpenCriar] = useState(false);
   const [editarTarget, setEditarTarget] = useState<FeriadoItemResponse | null>(null);
   const [excluirTarget, setExcluirTarget] = useState<FeriadoItemResponse | null>(null);
+  const [mesCalendario, setMesCalendario] = useState<Date>(() => new Date());
+  const [detalheData, setDetalheData] = useState<string | null>(null);
+  const calendarContainerRef = useRef<HTMLDivElement>(null);
 
   const [data, setData] = useState("");
   const [descricao, setDescricao] = useState("");
@@ -93,11 +114,107 @@ export default function FeriadosPage() {
 
   const { getError, getTouched, handleBlur, handleChange, validateAll, clearAll } = useValidation();
 
+  /** Período da listagem (ano; mês vazio = ano inteiro) para filtrar na API. */
+  const { dataInicioListagem, dataFimListagem } = useMemo(() => {
+    const y = anoListagem;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    if (mesListagem === "all") {
+      return {
+        dataInicioListagem: `${y}-01-01`,
+        dataFimListagem: `${y}-12-31`,
+      };
+    }
+    const m = mesListagem;
+    const first = new Date(y, m - 1, 1);
+    const last = new Date(y, m, 0);
+    return {
+      dataInicioListagem: `${first.getFullYear()}-${pad(first.getMonth() + 1)}-${pad(first.getDate())}`,
+      dataFimListagem: `${last.getFullYear()}-${pad(last.getMonth() + 1)}-${pad(last.getDate())}`,
+    };
+  }, [anoListagem, mesListagem]);
+
   const { data: listagem, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["empresa", "feriados", page, pageSize],
-    queryFn: () => listarFeriados({ page, size: pageSize }),
+    queryKey: ["empresa", "feriados", page, pageSize, nome || undefined, dataInicioListagem, dataFimListagem],
+    queryFn: () =>
+      listarFeriados({
+        page,
+        size: pageSize,
+        observacao: nome || undefined,
+        dataInicio: dataInicioListagem,
+        dataFim: dataFimListagem,
+      }),
     retry: false,
   });
+
+  /** Período do mês exibido no calendário (yyyy-MM-dd) para filtrar na API. */
+  const { dataInicioCal, dataFimCal } = useMemo(() => {
+    const y = mesCalendario.getFullYear();
+    const m = mesCalendario.getMonth();
+    const first = new Date(y, m, 1);
+    const last = new Date(y, m + 1, 0);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return {
+      dataInicioCal: `${first.getFullYear()}-${pad(first.getMonth() + 1)}-${pad(first.getDate())}`,
+      dataFimCal: `${last.getFullYear()}-${pad(last.getMonth() + 1)}-${pad(last.getDate())}`,
+    };
+  }, [mesCalendario]);
+
+  /** Dados para o calendário: feriados do mês exibido (usa query param data na API). */
+  const { data: listagemCalendario } = useQuery({
+    queryKey: ["empresa", "feriados", "calendario", dataInicioCal, dataFimCal],
+    queryFn: () => listarFeriados({ page: 0, size: 100, dataInicio: dataInicioCal, dataFim: dataFimCal }),
+    enabled: aba === "calendario",
+    retry: false,
+  });
+
+  const datasFeriados = useMemo(() => {
+    const list = listagemCalendario?.conteudo ?? [];
+    return list
+      .filter((f) => f.ativo && f.data)
+      .map((f) => {
+        const [y, m, d] = f.data.split("-").map(Number);
+        return new Date(y, (m ?? 1) - 1, d ?? 1);
+      });
+  }, [listagemCalendario?.conteudo]);
+
+  /** Mapa data (yyyy-MM-dd) -> descrição do feriado para exibir embaixo do dia. */
+  const descricaoByData = useMemo(() => {
+    const map = new Map<string, string>();
+    (listagemCalendario?.conteudo ?? [])
+      .filter((f) => f.ativo && f.data)
+      .forEach((f) => {
+        const existing = map.get(f.data);
+        map.set(f.data, existing ? `${existing} / ${f.descricao}` : f.descricao);
+      });
+    return map;
+  }, [listagemCalendario?.conteudo]);
+
+  const formatDataKey = (date: Date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+
+  /** Feriados do dia selecionado no calendário (para o modal de detalhe). */
+  const feriadosDoDia = useMemo(() => {
+    if (!detalheData) return [];
+    return (listagemCalendario?.conteudo ?? []).filter((f) => f.data === detalheData);
+  }, [detalheData, listagemCalendario?.conteudo]);
+
+  function FeriadoDayContent(props: DayContentProps) {
+    const descricao = descricaoByData.get(formatDataKey(props.date));
+    return (
+      <span className="flex flex-col items-center justify-center gap-0.5 w-full min-h-full">
+        <span>{props.date.getDate()}</span>
+        {descricao && (
+          <span className="text-[10px] leading-tight font-normal opacity-95 truncate max-w-full px-0.5 text-center border border-current rounded" title={descricao}>
+            {descricao}
+          </span>
+        )}
+      </span>
+    );
+  }
 
   useEffect(() => {
     if (isError && error) {
@@ -317,6 +434,19 @@ export default function FeriadosPage() {
         </Dialog>
       </div>
 
+      <Tabs value={aba} onValueChange={(v) => setAba(v as "listagem" | "calendario")} className="space-y-4">
+        <TabsList className="flex flex-wrap gap-1">
+          <TabsTrigger value="listagem" className="gap-2">
+            <List className="h-4 w-4" />
+            Listagem
+          </TabsTrigger>
+          <TabsTrigger value="calendario" className="gap-2">
+            <CalendarRange className="h-4 w-4" />
+            Calendário
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="listagem" className="mt-4 data-[state=inactive]:hidden">
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -324,6 +454,33 @@ export default function FeriadosPage() {
             Listagem
           </CardTitle>
           <div className="flex flex-wrap items-center gap-2">
+            <Select
+              value={mesListagem === "all" ? "all" : String(mesListagem)}
+              onValueChange={(v) => { setMesListagem(v === "all" ? "all" : parseInt(v, 10)); setPage(0); }}
+            >
+              <SelectTrigger className="w-[130px]">
+                <SelectValue placeholder="Mês" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {MESES.map((m, i) => (
+                  <SelectItem key={m} value={String(i + 1)}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={String(anoListagem)}
+              onValueChange={(v) => { setAnoListagem(parseInt(v, 10)); setPage(0); }}
+            >
+              <SelectTrigger className="w-[90px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[anoListagem, anoListagem - 1, anoListagem - 2, anoListagem + 1].sort((a, b) => a - b).map((a) => (
+                  <SelectItem key={a} value={String(a)}>{a}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Input
               placeholder="Buscar por nome..."
               value={nomeInput}
@@ -408,12 +565,13 @@ export default function FeriadosPage() {
               </Table>
               </div>
               {paginacao && (listagem?.conteudo?.length ?? 0) > 0 && (
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t pt-4">
-                  <p className="text-sm text-muted-foreground">
+                <div className="mt-2 sm:mt-4 grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 border-t pt-2 sm:pt-4">
+                  <p className="text-xs sm:text-sm text-muted-foreground">
                     Página {paginaAtual + 1} de {totalPaginas}
                     {` • ${paginacao.totalElementos} registro(s)`}
                   </p>
-                  <Pagination>
+                  <div className="flex justify-center scale-90 sm:scale-100 origin-center">
+                    <Pagination>
                     <PaginationContent>
                       <PaginationItem>
                         <PaginationPrevious
@@ -426,7 +584,7 @@ export default function FeriadosPage() {
                         />
                       </PaginationItem>
                       {(() => {
-                        const maxBtns = 5;
+                        const maxBtns = 3;
                         const start = Math.max(0, Math.min(paginaAtual - Math.floor(maxBtns / 2), totalPaginas - maxBtns));
                         const end = Math.min(totalPaginas - 1, start + maxBtns - 1);
                         return Array.from({ length: Math.max(0, end - start + 1) }, (_, i) => start + i).map((p) => (
@@ -456,12 +614,105 @@ export default function FeriadosPage() {
                       </PaginationItem>
                     </PaginationContent>
                   </Pagination>
+                  </div>
+                  <div className="flex items-center justify-end gap-2">
+                    <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">Por página</span>
+                    <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(0); }}>
+                      <SelectTrigger className="w-[72px] h-8 sm:w-[85px] sm:h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PAGE_SIZE_OPTIONS.map((n) => (
+                          <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               )}
             </>
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="calendario" className="mt-4 data-[state=inactive]:hidden">
+          <div ref={calendarContainerRef} className="relative min-h-[680px]">
+            <Card className="min-h-[680px]">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <CalendarRange className="h-5 w-5" />
+                  Calendário de feriados
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">Dias em vermelho são feriados (conforme API).</p>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center overflow-auto">
+                <CalendarUI
+                  mode="single"
+                  month={mesCalendario}
+                  onMonthChange={setMesCalendario}
+                  onDayClick={(day) => setDetalheData(formatDataKey(day))}
+                  modifiers={{ feriado: datasFeriados }}
+                  modifiersClassNames={{ feriado: "bg-red-500 text-white hover:bg-red-600 focus:bg-red-600 cursor-pointer" }}
+                  className="rounded-md border p-6"
+                  classNames={{
+                    caption_label: "text-lg font-medium",
+                    nav_button: "h-10 w-10",
+                    head_cell: "w-14 text-base font-normal",
+                    cell: "h-16 w-14 text-center text-base p-0 relative",
+                    day: "h-16 w-14 p-0 font-normal text-base flex flex-col items-center justify-center cursor-pointer hover:bg-muted",
+                  }}
+                  components={{ DayContent: FeriadoDayContent }}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* Modal detalhe do dia — centralizado sobre o calendário */}
+      <Dialog open={detalheData !== null} onOpenChange={(open) => !open && setDetalheData(null)}>
+        <DialogPortal container={calendarContainerRef.current ?? undefined}>
+          <DialogOverlay className="absolute inset-0 z-50 rounded-lg bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+          <DialogPrimitive.Content
+            className={cn(
+              "z-50 grid w-full max-w-sm gap-4 border bg-background p-6 shadow-lg duration-200",
+              "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
+              "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+              "rounded-lg"
+            )}
+          >
+            <DialogHeader>
+              <DialogTitle>Feriados em {detalheData ? formatDate(detalheData) : ""}</DialogTitle>
+              <DialogDescription>
+                {feriadosDoDia.length === 0
+                  ? "Nenhum feriado cadastrado nesta data."
+                  : `${feriadosDoDia.length} feriado(s) nesta data.`}
+              </DialogDescription>
+            </DialogHeader>
+            {feriadosDoDia.length > 0 && (
+              <ul className="space-y-3 py-2">
+                {feriadosDoDia.map((f) => (
+                  <li key={f.id} className="flex flex-col gap-0.5 rounded-md border p-3 text-sm">
+                    <span className="font-medium">{f.descricao}</span>
+                    <span className="text-muted-foreground">{f.tipoFeriadoDescricao}</span>
+                    <span className={f.ativo ? "text-green-600 text-xs" : "text-muted-foreground text-xs"}>
+                      {f.ativo ? "Ativo" : "Inativo"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <DialogPrimitive.Close
+              className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+              onClick={() => setDetalheData(null)}
+            >
+              <X className="h-4 w-4" />
+              <span className="sr-only">Fechar</span>
+            </DialogPrimitive.Close>
+          </DialogPrimitive.Content>
+        </DialogPortal>
+      </Dialog>
 
       {/* Modal Editar */}
       <Dialog open={!!editarTarget} onOpenChange={(o) => { if (!o) { setEditarTarget(null); resetForm(); } }}>

@@ -11,18 +11,26 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Pagination,
   PaginationContent,
   PaginationItem,
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "@/lib/pagination-constants";
 import { resumoBancoHorasFuncionario, listarBancoHorasHistoricoFuncionario } from "@/lib/api-funcionario";
 import { tokenStorage } from "@/lib/token-storage";
 
 export default function BancoHorasFuncionarioPage() {
   const [page, setPage] = useState(0);
-  const size = 10;
+  const [size, setSize] = useState(DEFAULT_PAGE_SIZE);
   const userId = tokenStorage.getUserId();
 
   const { data: resumoData } = useQuery({
@@ -129,37 +137,52 @@ export default function BancoHorasFuncionarioPage() {
                     </TableBody>
                   </Table>
                   </div>
-                  {totalPaginas > 1 && (
-                    <div className="mt-4 flex items-center justify-between">
-                      <p className="text-sm text-muted-foreground">
+                  {(totalPaginas > 1 || historico.length > 0) && (
+                    <div className="mt-2 sm:mt-4 grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4">
+                      <p className="text-xs sm:text-sm text-muted-foreground">
                         Página {paginaAtual + 1} de {totalPaginas}
                       </p>
-                      <Pagination>
-                        <PaginationContent>
-                          <PaginationItem>
-                            <PaginationPrevious
-                              href="#"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                if (paginaAtual > 0) setPage(paginaAtual - 1);
-                              }}
-                              className={paginaAtual === 0 ? "pointer-events-none opacity-50" : ""}
-                            />
-                          </PaginationItem>
-                          <PaginationItem>
-                            <PaginationNext
-                              href="#"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                if (paginaAtual < totalPaginas - 1) setPage(paginaAtual + 1);
-                              }}
-                              className={
-                                paginaAtual >= totalPaginas - 1 ? "pointer-events-none opacity-50" : ""
-                              }
-                            />
-                          </PaginationItem>
-                        </PaginationContent>
-                      </Pagination>
+                      <div className="flex justify-center scale-90 sm:scale-100 origin-center">
+                        <Pagination>
+                          <PaginationContent>
+                            <PaginationItem>
+                              <PaginationPrevious
+                                href="#"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  if (paginaAtual > 0) setPage(paginaAtual - 1);
+                                }}
+                                className={paginaAtual === 0 ? "pointer-events-none opacity-50" : ""}
+                              />
+                            </PaginationItem>
+                            <PaginationItem>
+                              <PaginationNext
+                                href="#"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  if (paginaAtual < totalPaginas - 1) setPage(paginaAtual + 1);
+                                }}
+                                className={
+                                  paginaAtual >= totalPaginas - 1 ? "pointer-events-none opacity-50" : ""
+                                }
+                              />
+                            </PaginationItem>
+                          </PaginationContent>
+                        </Pagination>
+                      </div>
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">Por página</span>
+                          <Select value={String(size)} onValueChange={(v) => { setSize(Number(v)); setPage(0); }}>
+                            <SelectTrigger className="w-[72px] h-8 sm:w-[85px] sm:h-9">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {PAGE_SIZE_OPTIONS.map((n) => (
+                                <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                     </div>
                   )}
                 </>

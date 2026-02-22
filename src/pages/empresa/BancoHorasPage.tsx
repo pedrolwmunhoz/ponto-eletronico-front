@@ -36,6 +36,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { useToast } from "@/hooks/use-toast";
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "@/lib/pagination-constants";
 import {
   listarFuncionarios,
   resumoBancoHoras,
@@ -53,7 +54,7 @@ export default function BancoHorasPage() {
   const [compensacaoForm, setCompensacaoForm] = useState({ historicoId: "", minutos: 0 });
   const [fechamentoForm, setFechamentoForm] = useState({ anoReferencia: new Date().getFullYear(), mesReferencia: new Date().getMonth() + 1 });
   const [histPage, setHistPage] = useState(0);
-  const histSize = 10;
+  const [histSize, setHistSize] = useState(DEFAULT_PAGE_SIZE);
 
   const { data: funcionariosData } = useQuery({
     queryKey: ["empresa", "funcionarios", 0, 500],
@@ -216,29 +217,47 @@ export default function BancoHorasPage() {
                     </TableBody>
                   </Table>
                   </div>
-                  {totalPaginas > 1 && (
-                    <div className="mt-4 flex justify-center">
-                      <Pagination>
-                        <PaginationContent>
-                          <PaginationItem>
-                            <PaginationPrevious
-                              href="#"
-                              onClick={(e) => { e.preventDefault(); if (histPage > 0) setHistPage(histPage - 1); }}
-                              className={histPage === 0 ? "pointer-events-none opacity-50" : ""}
-                            />
-                          </PaginationItem>
-                          <PaginationItem>
-                            <span className="px-2 text-sm">Pág. {histPage + 1} de {totalPaginas}</span>
-                          </PaginationItem>
-                          <PaginationItem>
-                            <PaginationNext
-                              href="#"
-                              onClick={(e) => { e.preventDefault(); if (histPage < totalPaginas - 1) setHistPage(histPage + 1); }}
-                              className={histPage >= totalPaginas - 1 ? "pointer-events-none opacity-50" : ""}
-                            />
-                          </PaginationItem>
-                        </PaginationContent>
-                      </Pagination>
+                  {(totalPaginas > 1 || (historicoData?.conteudo?.length ?? 0) > 0) && (
+                    <div className="mt-2 sm:mt-4 grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4">
+                      <p className="text-sm text-muted-foreground">
+                        Pág. {histPage + 1} de {totalPaginas}
+                      </p>
+                      <div className="flex justify-center scale-90 sm:scale-100 origin-center">
+                        <Pagination>
+                          <PaginationContent>
+                            <PaginationItem>
+                              <PaginationPrevious
+                                href="#"
+                                onClick={(e) => { e.preventDefault(); if (histPage > 0) setHistPage(histPage - 1); }}
+                                className={histPage === 0 ? "pointer-events-none opacity-50" : ""}
+                              />
+                            </PaginationItem>
+                            <PaginationItem>
+                              <span className="px-2 text-sm">Pág. {histPage + 1} de {totalPaginas}</span>
+                            </PaginationItem>
+                            <PaginationItem>
+                              <PaginationNext
+                                href="#"
+                                onClick={(e) => { e.preventDefault(); if (histPage < totalPaginas - 1) setHistPage(histPage + 1); }}
+                                className={histPage >= totalPaginas - 1 ? "pointer-events-none opacity-50" : ""}
+                              />
+                            </PaginationItem>
+                          </PaginationContent>
+                        </Pagination>
+                      </div>
+                        <div className="flex items-center justify-end gap-2">
+<span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">Por página</span>
+                            <Select value={String(histSize)} onValueChange={(v) => { setHistSize(Number(v)); setHistPage(0); }}>
+                            <SelectTrigger className="w-[72px] h-8 sm:w-[85px] sm:h-9">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {PAGE_SIZE_OPTIONS.map((n) => (
+                                <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                     </div>
                   )}
                 </>

@@ -12,6 +12,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Pagination,
   PaginationContent,
   PaginationItem,
@@ -19,6 +26,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "@/lib/pagination-constants";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -65,7 +73,7 @@ export default function SolicitacoesPage() {
   const queryClient = useQueryClient();
   const { getError, getTouched, handleBlur, handleChange, validateAll } = useValidation();
   const [page, setPage] = useState(0);
-  const [size] = useState(10);
+  const [size, setSize] = useState(DEFAULT_PAGE_SIZE);
   const [nome, setNome] = useState("");
   const [nomeInput, setNomeInput] = useState("");
   const [reprovarTarget, setReprovarTarget] = useState<SolicitacaoPontoItemResponse | null>(null);
@@ -237,11 +245,12 @@ export default function SolicitacoesPage() {
                 </TableBody>
               </Table>
               </div>
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t pt-4">
-                  <p className="text-sm text-muted-foreground">
+              <div className="mt-2 sm:mt-4 grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 border-t pt-2 sm:pt-4">
+                  <p className="text-xs sm:text-sm text-muted-foreground">
                     Página {page + 1} de {totalPaginas} • {data?.total ?? 0} registro(s)
                   </p>
-                  <Pagination>
+                  <div className="flex justify-center scale-90 sm:scale-100 origin-center">
+                    <Pagination>
                     <PaginationContent>
                       <PaginationItem>
                         <PaginationPrevious
@@ -254,7 +263,7 @@ export default function SolicitacoesPage() {
                         />
                       </PaginationItem>
                       {(() => {
-                        const maxBtns = 5;
+                        const maxBtns = 3;
                         const start = Math.max(0, Math.min(page - Math.floor(maxBtns / 2), totalPaginas - maxBtns));
                         const end = Math.min(totalPaginas - 1, start + maxBtns - 1);
                         return Array.from({ length: end - start + 1 }, (_, i) => start + i).map((p) => (
@@ -286,6 +295,20 @@ export default function SolicitacoesPage() {
                       </PaginationItem>
                     </PaginationContent>
                   </Pagination>
+                  </div>
+                  <div className="flex items-center justify-end gap-2">
+                    <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">Por página</span>
+                    <Select value={String(size)} onValueChange={(v) => { setSize(Number(v)); setPage(0); }}>
+                      <SelectTrigger className="w-[72px] h-8 sm:w-[85px] sm:h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PAGE_SIZE_OPTIONS.map((n) => (
+                          <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
             </>
           )}

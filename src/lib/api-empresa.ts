@@ -351,13 +351,15 @@ export function criarAfastamento(
 
 // --- Feriados ---
 
-/** GET /api/empresa/feriados — Doc id 57. Params: page, size, observacao (opcional). */
+/** GET /api/empresa/feriados — Doc id 57. Params: page, size, observacao, dataInicio, dataFim (opcionais). */
 export function listarFeriados(
-  params: { page?: number; size?: number; observacao?: string } = {}
+  params: { page?: number; size?: number; observacao?: string; dataInicio?: string; dataFim?: string } = {}
 ): Promise<FeriadoListagemPageResponse> {
-  const { page = 0, size = 20, observacao } = params;
+  const { page = 0, size = 20, observacao, dataInicio, dataFim } = params;
   const query: Record<string, string | number> = { page, size };
   if (observacao != null && observacao.trim() !== "") query.observacao = observacao.trim();
+  if (dataInicio != null && dataInicio.trim() !== "") query.dataInicio = dataInicio.trim();
+  if (dataFim != null && dataFim.trim() !== "") query.dataFim = dataFim.trim();
   return api
     .get<FeriadoListagemPageResponse>(`${BASE}/feriados`, { params: query })
     .then((r) => r.data);

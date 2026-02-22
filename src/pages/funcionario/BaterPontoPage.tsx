@@ -4,21 +4,28 @@ import { Clock } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Pagination,
   PaginationContent,
   PaginationItem,
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "@/lib/pagination-constants";
 import { registrarPontoApp, listarMeuPonto } from "@/lib/api-funcionario";
 import { tokenStorage } from "@/lib/token-storage";
 import { useToast } from "@/hooks/use-toast";
 
-const BATIDAS_POR_PAGINA = 10;
-
 export default function BaterPontoPage() {
   const [now, setNow] = useState(new Date());
   const [pageBatidas, setPageBatidas] = useState(0);
+  const [size, setSize] = useState(DEFAULT_PAGE_SIZE);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const funcionarioId = tokenStorage.getUserId();
@@ -75,7 +82,6 @@ export default function BaterPontoPage() {
     .filter((m) => String(m.horario).startsWith(hojeStr))
     .sort((a, b) => String(b.horario).localeCompare(String(a.horario)));
 
-  const size = BATIDAS_POR_PAGINA;
   const totalPaginas = Math.max(1, Math.ceil(batidasHoje.length / size));
   const batidasExibidas =
     batidasHoje.length > size
@@ -119,9 +125,9 @@ export default function BaterPontoPage() {
             <p className="text-sm text-muted-foreground">Nenhuma batida registrada ainda.</p>
           ) : (
             <>
-              <div className="overflow-x-auto rounded-md border">
+              <div className="h-[600px] overflow-y-auto overflow-x-auto rounded-md border">
                 <table className="w-full text-sm">
-                  <thead>
+                  <thead className="sticky top-0 z-10 bg-muted/50">
                     <tr className="border-b bg-muted/50">
                       <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Data</th>
                       <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Dia</th>
@@ -143,35 +149,50 @@ export default function BaterPontoPage() {
                   </tbody>
                 </table>
               </div>
-              {totalPaginas > 1 && (
-                <div className="mt-4 flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">
+              {(totalPaginas > 1 || batidasHoje.length > 0) && (
+                <div className="mt-2 sm:mt-4 grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4">
+                  <p className="text-xs sm:text-sm text-muted-foreground">
                     Página {pageBatidas + 1} de {totalPaginas}
                   </p>
-                  <Pagination>
-                    <PaginationContent>
-                      <PaginationItem>
-                        <PaginationPrevious
-                          href="#"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            if (pageBatidas > 0) setPageBatidas(pageBatidas - 1);
-                          }}
-                          className={pageBatidas === 0 ? "pointer-events-none opacity-50" : ""}
-                        />
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationNext
-                          href="#"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            if (pageBatidas < totalPaginas - 1) setPageBatidas(pageBatidas + 1);
-                          }}
-                          className={pageBatidas >= totalPaginas - 1 ? "pointer-events-none opacity-50" : ""}
-                        />
-                      </PaginationItem>
-                    </PaginationContent>
-                  </Pagination>
+                  <div className="flex justify-center scale-90 sm:scale-100 origin-center">
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              if (pageBatidas > 0) setPageBatidas(pageBatidas - 1);
+                            }}
+                            className={pageBatidas === 0 ? "pointer-events-none opacity-50" : ""}
+                          />
+                        </PaginationItem>
+                        <PaginationItem>
+                          <PaginationNext
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              if (pageBatidas < totalPaginas - 1) setPageBatidas(pageBatidas + 1);
+                            }}
+                            className={pageBatidas >= totalPaginas - 1 ? "pointer-events-none opacity-50" : ""}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                  </div>
+                    <div className="flex items-center justify-end gap-2">
+<span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">Por página</span>
+                        <Select value={String(size)} onValueChange={(v) => { setSize(Number(v)); setPageBatidas(0); }}>
+                          <SelectTrigger className="w-[72px] h-8 sm:w-[85px] sm:h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PAGE_SIZE_OPTIONS.map((n) => (
+                            <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                 </div>
               )}
             </>

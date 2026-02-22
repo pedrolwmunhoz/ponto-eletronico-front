@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ponto-eletronico-frontend
+  labels:
+    app: ponto-eletronico-frontend
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - segponto.criptoai.com
+      secretName: segponto-criptoai-com-tls
+  rules:
+    - host: segponto.criptoai.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ponto-eletronico-frontend
+                port:
+                  number: 80
