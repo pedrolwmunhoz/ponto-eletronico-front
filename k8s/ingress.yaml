@@ -11,10 +11,10 @@ spec:
   ingressClassName: traefik
   tls:
     - hosts:
-        - segponto.criptoai.com
-      secretName: segponto-criptoai-com-tls
+        - segponto.criptoai.io
+      secretName: segponto-criptoai-io-tls
   rules:
-    - host: segponto.criptoai.com
+    - host: segponto.criptoai.io
       http:
         paths:
           - path: /
